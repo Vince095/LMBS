@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="LMBS">
+  <rect width="180" height="180" rx="40" fill="#0F172A"/>
+  <path d="M40 64 L96 46 L142 80 L130 130 L56 142 L40 102 Z"
+        fill="rgba(5,150,105,0.18)" stroke="#34d399" stroke-width="6"
+        stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="90" cy="92" r="26" fill="#059669"/>
+  <path d="M76 92 L86 102 L106 82" stroke="#fff" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="90" y="160" text-anchor="middle" font-family="Public Sans, system-ui, sans-serif" font-size="22" font-weight="700" fill="#bec6e0" letter-spacing="0.06em">LMBS</text>
+</svg>

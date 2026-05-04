@@ -1,0 +1,12 @@
+export { http }                from './httpClient';
+export { disputeService }      from './disputeService';
+export { encumbranceService }  from './encumbranceService';
+export { searchService }       from './searchService';
+export { notificationService } from './notificationService';
+export { dashboardService }    from './dashboardService';
+export { parcelService }       from './parcelService';
+export { certificateService }  from './certificateService';
+export { networkService }      from './networkService';
+export { transferService }     from './transferService';
+export { adminService }        from './adminService';
+export { profileService }      from './profileService';

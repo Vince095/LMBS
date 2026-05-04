@@ -1,0 +1,30 @@
+{
+  "name": "lmbs-backend",
+  "version": "1.0.0",
+  "description": "Land Management Blockchain System backend API (SAD section 6)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node ../../scripts/seed-demo-data.js",
+    "test": "echo \"Tests pending\" && exit 0"
+  },
+  "keywords": [
+    "lmbs",
+    "lesotho",
+    "blockchain",
+    "land-registry"
+  ],
+  "author": "Karabo Nkhahle",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "ethers": "^6.13.0",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongodb": "^7.2.0",
+    "mongoose": "^9.6.1"
+  }
+}

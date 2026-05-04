@@ -1,23 +1,40 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
+# ── Dependencies ──────────────────────────────────────────────────────────────
 /node_modules
+backend/node_modules
 /.pnp
 .pnp.js
 
-# testing
-/coverage
-
-# production
-/build
-
-# misc
-.DS_Store
+# ── Environment / secrets (NEVER commit) ─────────────────────────────────────
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+backend/.env
+backend/.env.*
+!backend/.env.example
 
+# ── Build output ──────────────────────────────────────────────────────────────
+/build
+/dist
+
+# ── Test / coverage ───────────────────────────────────────────────────────────
+/coverage
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lgs/
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln

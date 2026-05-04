@@ -1,0 +1,71 @@
+/* LMBS — Immutable Governance global styles.
+   Tailwind utilities come from the CDN script in public/index.html.
+   This file only declares CSS variables + a small set of helpers used by
+   components that need raw CSS rather than Tailwind classes. */
+
+:root {
+  --imm-surface: #f7f9fb;
+  --imm-surface-container-lowest: #ffffff;
+  --imm-surface-container-low: #f2f4f6;
+  --imm-surface-container: #eceef0;
+  --imm-on-surface: #191c1e;
+  --imm-on-surface-variant: #45464d;
+  --imm-outline: #76777d;
+  --imm-outline-variant: #c6c6cd;
+  --imm-primary: #0F172A;
+  --imm-primary-container: #131b2e;
+  --imm-emerald: #059669;
+  --imm-emerald-fixed: #85f8c4;
+  --imm-emerald-tint: rgba(5, 150, 105, 0.10);
+  --imm-amber-tint: rgba(245, 158, 11, 0.10);
+  --imm-crimson-tint: rgba(220, 38, 38, 0.10);
+  --imm-shadow-raised: 0px 4px 20px rgba(15, 23, 42, 0.08);
+  --imm-radius-lg: 0.25rem;
+  --imm-radius-xl: 0.5rem;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  font-family: "Public Sans", ui-sans-serif, system-ui, sans-serif;
+  background: var(--imm-surface);
+  color: var(--imm-on-surface);
+}
+
+/* WCAG 2.4.7 visible focus ring — emerald to match the Stitch focus state. */
+:focus-visible {
+  outline: 2px solid var(--imm-emerald);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Tabular figures for blockchain hashes / coordinates / token IDs. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Utility helpers used by raw HTML in the new pages. */
+.imm-card {
+  background: var(--imm-surface-container-lowest);
+  border: 1px solid var(--imm-outline-variant);
+  border-radius: var(--imm-radius-xl);
+}
+
+.imm-data-row:nth-child(even) td {
+  background: var(--imm-surface-container-low);
+}
+
+.imm-status-verified { background: var(--imm-emerald-tint); color: var(--imm-emerald); }
+.imm-status-pending  { background: var(--imm-amber-tint);   color: #92400E; }
+.imm-status-disputed { background: var(--imm-crimson-tint); color: #991B1B; }
+
+/* Loader spinner keyframes - shared between the boot HTML and the Loader component. */
+@keyframes lmbs-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

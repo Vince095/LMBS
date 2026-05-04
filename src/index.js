@@ -1,17 +1,26 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+
 import './index.css';
-import App from './App';
+import './theme/global.css';
+
+import { I18nProvider } from './i18n';
+import { AuthProvider } from './auth';
+import AppRouter from './govtech/router';
 import reportWebVitals from './reportWebVitals';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
+    <React.StrictMode>
+        <I18nProvider defaultLang="ses">
+            <BrowserRouter>
+                <AuthProvider>
+                    <AppRouter />
+                </AuthProvider>
+            </BrowserRouter>
+        </I18nProvider>
+    </React.StrictMode>
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
