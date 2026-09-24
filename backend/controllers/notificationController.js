@@ -15,7 +15,7 @@ async function listForUser(req, res, next) {
 
 async function markRead(req, res, next) {
     try {
-        const updated = await notify.markRead(req.params.id);
+        const updated = await notify.markRead(req.params.id, req.user.address);
         if (!updated) throw new HttpError(404, 'Notification not found');
         res.json(updated);
     } catch (err) { next(err); }

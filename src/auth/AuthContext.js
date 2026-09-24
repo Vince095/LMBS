@@ -82,8 +82,14 @@ export function AuthProvider({ children }) {
         setUser(null);
     }, []);
 
+    // Replace the session after the server re-issues a token (e.g. once a
+    // wallet has been linked by signed challenge).
+    const setSession = useCallback((u, t) => {
+        writeToken(t); setToken(t); setUser(u);
+    }, []);
+
     const value = {
-        user, token, loading, error,
+        user, token, loading, error, setSession,
         isAuthenticated: !!user,
         hasRole: (role) => !!user && (user.role === role || user.role === 'ADMIN'),
         login, register, logout,

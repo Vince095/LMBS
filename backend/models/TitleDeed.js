@@ -17,7 +17,7 @@ const ownerSchema = new Schema({
 const titleDeedSchema = new Schema({
     deedNumber: { type: String, required: true, unique: true, index: true }, // FR-TD-001
     parcelPin: { type: String, required: true, index: true },
-    tokenId: { type: Number, index: true, sparse: true },
+    tokenId: { type: String, index: true, sparse: true },
 
     owners: {
         type: [ownerSchema],
@@ -35,7 +35,10 @@ const titleDeedSchema = new Schema({
     issueDate: { type: Date, default: Date.now },
     issuedAt:  { type: Date },                      // alias used by provenanceService
     issuedBy:  { type: String },                    // officer address / name
-    status: { type: String, enum: ['ACTIVE', 'REVOKED', 'TRANSFERRED'], default: 'ACTIVE' },
+    // PENDING until the on-chain registration executes; only the chain indexer activates a deed.
+    status: { type: String, enum: ['PENDING', 'ACTIVE', 'REVOKED', 'TRANSFERRED', 'REJECTED'], default: 'PENDING' },
+    chainRequestId: { type: Number, index: true, sparse: true },
+    anchored: { type: Boolean, default: false }, // true once the state is confirmed on-chain
 
     encumbrances: [{
         encumbranceId: String,

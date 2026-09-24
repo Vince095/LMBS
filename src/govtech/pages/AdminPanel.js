@@ -11,7 +11,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { adminService }    from '../../services/adminService';
-import { parcelService }   from '../../services/parcelService';
 import { http }            from '../../services/httpClient';
 import { ENDPOINTS }       from '../../config/api';
 import { useTranslation }  from '../../i18n';

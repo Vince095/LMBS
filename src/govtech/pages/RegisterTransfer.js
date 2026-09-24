@@ -10,15 +10,29 @@
  *   SURVEY_PLAN | ENV_ASSESSMENT | DEED_OF_SALE | TITLE_DEED |
  *   COURT_ORDER | ID_DOCUMENT | POWER_OF_ATTORNEY | OTHER
  *
- * NOTE: Encumbrances and disputes are not handled in this release.
+ * ON-CHAIN SUBMISSION (supervisor review, Aug 2026)
+ *   1. Every attached file is encrypted and stored off-chain (/api/documents);
+ *      a manifest of their hashes is stored the same way.
+ *   2. The request is submitted to the LandRegistry contract FROM THE USER'S
+ *      OWN WALLET: submitRegistration (registrar / applicant) or
+ *      submitTransfer (current title holder only). The manifest hash is the
+ *      on-chain documentHash; the Survey Plan hash is the cadastral surveyHash.
+ *   3. The backend then records the off-chain metadata against the verified
+ *      transaction. Nothing becomes ACTIVE until M-of-N approvers approve it
+ *      on-chain.
  *
  * All UI strings use useTranslation() (SRS NFR-009).
  */
 
 import React, { useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { parcelService } from '../../services';
+import { parcelService, transferService } from '../../services';
 import { useTranslation } from '../../i18n';
+import { useChain } from '../../chain/ChainContext';
+import { parcelKeyOf, submitRegistration, submitTransfer } from '../../chain/registry';
+import { uploadDocument, uploadManifest } from '../../chain/documents';
+import { decodeChainError } from '../../chain/errors';
+import WalletPanel from '../components/WalletPanel';
 
 const inputCls = 'w-full px-3 py-2 border border-outline-variant rounded-DEFAULT bg-surface-container-lowest font-public-sans text-body-sm placeholder:text-outline focus:outline-none focus:border-tertiary-fixed-dim';
 
@@ -66,7 +80,7 @@ function Field({ label, children }) {
 
 // ─── Step 1: Applicant Details ────────────────────────────────────────────────
 
-function ApplicantStep({ form, set, onCancel, onNext }) {
+function ApplicantStep({ form, set, onCancel, onNext, isTransfer }) {
     const { t } = useTranslation();
     return (
         <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-lg">
@@ -89,6 +103,11 @@ function ApplicantStep({ form, set, onCancel, onNext }) {
                 <Field label={t('regwizard.phoneNumber')}>
                     <input className={inputCls} value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} placeholder="+266 5X XXX XXX" />
                 </Field>
+                <div className="md:col-span-2">
+                    <Field label={isTransfer ? t('regwizard.buyerWallet', 'Buyer wallet address (must have a verified identity)') : t('regwizard.beneficiaryWallet', 'Beneficiary wallet address (must have a verified identity)')}>
+                        <input className={inputCls + ' font-mono'} value={form.wallet || ''} onChange={(e) => set('wallet', e.target.value.trim())} placeholder="0x…" />
+                    </Field>
+                </div>
             </div>
             <div className="flex justify-end items-center gap-2 mt-stack-lg">
                 <button onClick={onCancel} className="px-4 py-2 border border-outline-variant rounded-DEFAULT font-public-sans text-body-sm hover:bg-surface-container-low transition-colors">{t('regwizard.cancel')}</button>
@@ -387,6 +406,8 @@ export default function RegisterTransfer() {
     const [submitting,  setSubmitting]  = useState(false);
     const [submitError, setSubmitError] = useState(null);
     const [draftState,  setDraftState]  = useState(null); // null | 'saving' | 'saved' | 'error'
+    const [progress,    setProgress]    = useState(null);
+    const chain = useChain();
 
     const set      = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
     const onCancel = () => navigate(-1);
@@ -424,47 +445,62 @@ export default function RegisterTransfer() {
         setSubmitting(true);
         setSubmitError(null);
         try {
-            // 1. Register the parcel / transfer
-            await parcelService.register({
-                parcelNumber: form.pin || ('LSO-NEW-' + Date.now()),
-                location:     form.district || '',
-                area:         Number(form.areaM2) || 0,
-                owner:        form.fullName || '',
-                additionalDetails: {
-                    idNumber:   form.idNumber,
-                    entity:     form.entity,
-                    email:      form.email,
-                    phone:      form.phone,
-                    useType:    form.useType,
-                    priceLSL:   form.priceLSL ? Number(form.priceLSL) : 0,
-                    isTransfer,
-                    sourcePin:  pin,
-                },
-            });
-
-            const effectivePin = form.pin || pin || 'PRCL-NEW';
-
-            // 2. Upload each attached document to the backend so it appears
-            //    in the Property Details Official Documents panel immediately.
-            if (docs.length > 0) {
-                await Promise.allSettled(
-                    docs.map((d) =>
-                        parcelService.uploadDocument(effectivePin, {
-                            type:       d.type,
-                            name:       d.name,
-                            sizeKB:     d.sizeKB,
-                            uploadedBy: form.fullName || form.idNumber || 'Applicant',
-                            // ipfsCid and sha256 are filled by the backend IPFS pipeline
-                        })
-                    )
-                );
+            if (!chain.config || !chain.config.configured) throw new Error('The blockchain network is not configured on the server.');
+            if (!chain.signer || !chain.walletMatchesAccount) throw new Error('Connect the wallet that is linked to your account (see the Wallet panel above).');
+            const parcelNumber = (form.pin || pin || '').trim();
+            if (!parcelNumber) throw new Error(t('regwizard.pinRequired', 'A parcel number is required.'));
+            if (!/^0x[0-9a-fA-F]{40}$/.test(form.wallet || '')) throw new Error(t('regwizard.walletRequired', 'Enter a valid wallet address for the beneficiary / buyer.'));
+            const survey = docs.find((d) => d.type === 'SURVEY_PLAN');
+            if (!isTransfer && !survey) {
+                throw new Error(t('regwizard.surveyRequired', 'Attach the licensed surveyor\'s plan (Survey Plan); its hash is anchored as the cadastral reference.'));
             }
 
-            navigate('/certificate/' + encodeURIComponent(effectivePin));
+            // 1. Encrypt and store every document off-chain; anchor only hashes.
+            setProgress(t('regwizard.progressDocs', 'Encrypting and storing documents…'));
+            const stored = [];
+            for (const d of docs) {
+                const r = await uploadDocument(d.file, { type: d.type, parcelPin: parcelNumber });
+                stored.push({ type: d.type, name: d.name, docId: r.docId, documentHash: r.documentHash });
+            }
+            const manifest = await uploadManifest({
+                kind: isTransfer ? 'TRANSFER' : 'REGISTRATION', parcelNumber, documents: stored, createdAt: new Date().toISOString(),
+            }, parcelNumber);
+
+            // 2. Submit on-chain from the user's own wallet.
+            setProgress(t('regwizard.progressWallet', 'Confirm the request in your wallet…'));
+            if (isTransfer) {
+                const tokenId = BigInt(await parcelKeyOf(chain.config, parcelNumber)).toString();
+                const out = await submitTransfer(chain.config, chain.signer, { tokenId, to: form.wallet, documentHash: manifest.documentHash });
+                setProgress(t('regwizard.progressRecord', 'Recording details…'));
+                const price = Number(form.priceLSL) || 0;
+                await transferService.initiate({
+                    chainTxHash: out.txHash, considerationLSL: price, isGiftTransfer: price === 0,
+                    toOwner: { fullName: form.fullName || '' },
+                });
+                navigate('/registry');
+            } else {
+                const surveyHash = stored.find((d) => d.type === 'SURVEY_PLAN').documentHash;
+                const out = await submitRegistration(chain.config, chain.signer, {
+                    parcelNumber, beneficiary: form.wallet, surveyHash, documentHash: manifest.documentHash,
+                });
+                setProgress(t('regwizard.progressRecord', 'Recording details…'));
+                await parcelService.register({
+                    parcelNumber,
+                    chainTxHash: out.txHash,
+                    location:     form.district || '',
+                    district:     form.district || 'Maseru',
+                    areaM2:       Number(form.areaM2) || 0,
+                    landUse:      form.useType || 'RESIDENTIAL',
+                    owner:        { fullName: form.fullName || '' },
+                    additionalDetails: { idNumber: form.idNumber, entity: form.entity, email: form.email, phone: form.phone },
+                });
+                navigate('/property/' + encodeURIComponent(parcelNumber));
+            }
         } catch (err) {
-            setSubmitError(err.message || t('regwizard.submissionFailed'));
+            setSubmitError(decodeChainError(err) || t('regwizard.submissionFailed'));
         } finally {
             setSubmitting(false);
+            setProgress(null);
         }
     };
 
@@ -505,9 +541,11 @@ export default function RegisterTransfer() {
                 </div>
             )}
 
-            {step === 1 && <ApplicantStep form={form} set={set} onCancel={onCancel} onNext={() => setStep(2)} />}
+            {step === 1 && <ApplicantStep form={form} set={set} isTransfer={isTransfer} onCancel={onCancel} onNext={() => setStep(2)} />}
             {step === 2 && <PropertyStep  form={form} set={set} onBack={() => setStep(1)} onNext={() => setStep(3)} />}
             {step === 3 && <DocumentsStep docs={docs} setDocs={setDocs} onBack={() => setStep(2)} onNext={() => setStep(4)} />}
+            {step === 4 && <WalletPanel />}
+            {step === 4 && progress && <p role="status" className="font-public-sans text-body-sm text-on-surface-variant">{progress}</p>}
             {step === 4 && <VerifyStep    form={form} docs={docs} onBack={() => setStep(3)} onSubmit={onSubmit} submitting={submitting} error={submitError} />}
 
             <aside className="bg-secondary-container border border-outline-variant rounded-xl p-stack-md flex gap-3">

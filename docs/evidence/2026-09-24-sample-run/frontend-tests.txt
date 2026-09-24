@@ -1,0 +1,13 @@
+(Use `node --trace-deprecation ...` to show where the warning was created)
+PASS src/chain/errors.test.js
+  ✓ decodes LandRegistry custom errors into plain-language messages (14 ms)
+  ✓ explains wallet rejections and falls back to the raw message (1 ms)
+
+PASS src/chain/abi.test.js
+  ✓ uses the LandRegistry approval interface without mnemonic or QBFT-phase functions (1 ms)
+
+Test Suites: 2 passed, 2 total
+Tests:       3 passed, 3 total
+Snapshots:   0 total
+Time:        0.601 s, estimated 1 s
+Ran all test suites.

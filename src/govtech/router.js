@@ -2,14 +2,14 @@
  * GovTech Land Portal router.
  *
  * Public:       /login, /register
- * All auth:     /, /search, /properties, /property/:pin, /register-parcel,
+ * All auth:     /, /search, /properties, /property/:pin, /register-parcel, /registry,
  *               /transfer/:pin, /certificate/:id, /transactions, /transactions/:pin,
  *               /documents, /disputes, /tx/:txHash, /profile
- * Officer+:     /approvals, /dispute-management, /encumbrances
+ * Officer+:     /approvals (on-chain M-of-N votes), /dispute-management
  * Admin only:   /parcel-history, /admin-panel
  */
 
-import React, { Suspense, lazy } from 'react';
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 
 import Layout              from './Layout';
@@ -29,11 +29,9 @@ import EncumbrancesPage    from './pages/EncumbrancesPage';
 import AdminPanel          from './pages/AdminPanel';
 import ProfilePage         from './pages/ProfilePage';
 import TxViewer            from './pages/TxViewer';
+import ChainConsole        from './pages/ChainConsole';
 
 import { LoginPage, RegisterPage, ProtectedRoute } from '../auth';
-import Loader from './components/Loader';
-
-const LegacyAdmin = lazy(() => import('../App'));
 
 export default function AppRouter() {
     return (
@@ -58,9 +56,10 @@ export default function AppRouter() {
                     <Route path="encumbrances"        element={<EncumbrancesPage />} />
                     <Route path="profile"             element={<ProfilePage />} />
                     <Route path="tx/:txHash"          element={<TxViewer />} />
+                    <Route path="registry"            element={<ChainConsole />} />
 
                     {/* ── Officer / Notary / Admin ───────────────────────── */}
-                    <Route element={<ProtectedRoute roles={['REGISTRY_OFFICER','NOTARY','ADMIN']} />}>
+                    <Route element={<ProtectedRoute roles={['REGISTRY_OFFICER','NOTARY','SURVEYOR','AUDITOR','ADMIN']} />}>
                         <Route path="approvals"          element={<ApprovalsQueue />} />
                         <Route path="dispute-management" element={<DisputeManagement />} />
                     </Route>
@@ -72,17 +71,6 @@ export default function AppRouter() {
                         <Route path="admin-panel"         element={<AdminPanel />} />
                     </Route>
                 </Route>
-            </Route>
-
-            <Route element={<ProtectedRoute roles={['ADMIN','REGISTRY_OFFICER']} />}>
-                <Route
-                    path="/legacy/admin/*"
-                    element={
-                        <Suspense fallback={<Loader fullscreen size="lg" label="Loading operator console..." />}>
-                            <LegacyAdmin />
-                        </Suspense>
-                    }
-                />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

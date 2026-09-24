@@ -20,9 +20,7 @@ const URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/' + DB_NAME;
 // existing route handlers that read/write the pre-refactor collections.
 const LEGACY_COLLECTION_NAMES = [
     'lmsusers',
-    'lmssignatures',
     'lmstitles',
-    'lms_trancs',
 ];
 
 const client = new MongoClient(URI, {

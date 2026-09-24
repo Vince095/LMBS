@@ -1,0 +1,102 @@
+{
+  "summary": {
+    "network": "besu",
+    "requests": 40,
+    "concurrency": 4,
+    "registrationPhaseSeconds": 80.917,
+    "transferPhaseSeconds": 79.906,
+    "throughputTxPerSecond": 1.99,
+    "completedRegistrationsPerSecond": 0.49,
+    "completedTransfersPerSecond": 0.5,
+    "failureRate": "0.0%",
+    "latency": {
+      "submitRegistration": {
+        "n": 40,
+        "p50ms": 2216,
+        "p95ms": 2351,
+        "p99ms": 2362,
+        "meanMs": 2037,
+        "maxMs": 2362
+      },
+      "approve": {
+        "n": 240,
+        "p50ms": 2059,
+        "p95ms": 2236,
+        "p99ms": 2322,
+        "meanMs": 1925,
+        "maxMs": 2481
+      },
+      "submitTransfer": {
+        "n": 40,
+        "p50ms": 1936,
+        "p95ms": 2254,
+        "p99ms": 2266,
+        "meanMs": 1961,
+        "maxMs": 2266
+      },
+      "endToEndRegistration": {
+        "n": 40,
+        "p50ms": 7979,
+        "p95ms": 8158,
+        "p99ms": 8984,
+        "meanMs": 7908,
+        "maxMs": 8984
+      },
+      "endToEndTransfer": {
+        "n": 40,
+        "p50ms": 8039,
+        "p95ms": 8260,
+        "p99ms": 8280,
+        "meanMs": 7991,
+        "maxMs": 8280
+      }
+    },
+    "besuProcesses": {
+      "before": [
+        {
+          "pid": 1608,
+          "cpuPercent": 9.9,
+          "rssMB": 495
+        },
+        {
+          "pid": 1617,
+          "cpuPercent": 6.1,
+          "rssMB": 465
+        },
+        {
+          "pid": 1643,
+          "cpuPercent": 5.9,
+          "rssMB": 474
+        },
+        {
+          "pid": 1660,
+          "cpuPercent": 5.7,
+          "rssMB": 502
+        }
+      ],
+      "after": [
+        {
+          "pid": 1608,
+          "cpuPercent": 11.1,
+          "rssMB": 532
+        },
+        {
+          "pid": 1617,
+          "cpuPercent": 6.5,
+          "rssMB": 468
+        },
+        {
+          "pid": 1643,
+          "cpuPercent": 6.4,
+          "rssMB": 482
+        },
+        {
+          "pid": 1660,
+          "cpuPercent": 6,
+          "rssMB": 501
+        }
+      ]
+    }
+  },
+  "failures": []
+}

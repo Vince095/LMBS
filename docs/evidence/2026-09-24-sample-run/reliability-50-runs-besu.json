@@ -1,0 +1,36 @@
+{
+  "network": "besu",
+  "runs": 50,
+  "summary": {
+    "registration": {
+      "attempts": 50,
+      "succeeded": 50,
+      "failed": 0,
+      "successRate": "100.0%"
+    },
+    "duplicate": {
+      "attempts": 50,
+      "succeeded": 50,
+      "failed": 0,
+      "successRate": "100.0%"
+    },
+    "transfer": {
+      "attempts": 50,
+      "succeeded": 50,
+      "failed": 0,
+      "successRate": "100.0%"
+    },
+    "bypass": {
+      "attempts": 50,
+      "succeeded": 50,
+      "failed": 0,
+      "successRate": "100.0%"
+    }
+  },
+  "failures": {
+    "registration": [],
+    "duplicate": [],
+    "transfer": [],
+    "bypass": []
+  }
+}

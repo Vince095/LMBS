@@ -1,0 +1,35 @@
+{
+  "pin": "UI-MUFDEMQ9-001",
+  "results": [
+    {
+      "name": "registrar submitted the registration from the wizard (wallet-signed)",
+      "ok": true,
+      "detail": "UI-MUFDEMQ9-001"
+    },
+    {
+      "name": "request is PENDING on-chain for the right beneficiary",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "three wallet approvals executed the request on-chain",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "indexer marked parcel and deed ACTIVE",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "registry console lists the executed request",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "no uncaught browser errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

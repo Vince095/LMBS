@@ -1,36 +1,34 @@
 /**
- * AES-256-CBC envelope encryption helper.
+ * Symmetric encryption for OFF-CHAIN documents (AES-256-GCM).
  *
- * Used to encrypt validator mnemonic phrases before writing them to MongoDB
- * (the on-chain anchor stores only a keccak256 hash). Mirrors the original
- * `routes/signatures.js` implementation but lives in the service layer so it
- * can be reused by other modules.
+ *  - The 256-bit key comes from ENCRYPTION_KEY (64 hex chars). There is no
+ *    default key and no key derivation from a password.
+ *  - GCM is authenticated: any modification of the ciphertext, IV or tag
+ *    makes decryption fail, so tampering is detected.
+ *
+ * NOTE: validator keys, seed phrases and mnemonics are NEVER handled by this
+ * backend. Approvals are signed in the approver's own wallet.
  */
 
 const crypto = require('crypto');
 const env = require('../config/env');
 
-function deriveKey(secret) {
-    return crypto.createHash('sha256').update(String(secret)).digest('base64').substring(0, 32);
+function keyFrom(hex = env.encryptionKeyHex) {
+    if (!/^[0-9a-fA-F]{64}$/.test(hex || '')) throw new Error('ENCRYPTION_KEY must be 64 hex characters');
+    return Buffer.from(hex, 'hex');
 }
 
-function encrypt(plaintext, secret = env.encryptionKey) {
-    const iv = crypto.randomBytes(16);
-    const key = Buffer.from(deriveKey(secret));
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let out = cipher.update(plaintext, 'utf8', 'hex');
-    out += cipher.final('hex');
-    return `${iv.toString('hex')}:${out}`;
+function encrypt(plaintext, keyHex) {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', keyFrom(keyHex), iv);
+    const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+    return { ciphertext, iv: iv.toString('hex'), tag: cipher.getAuthTag().toString('hex') };
 }
 
-function decrypt(ciphertext, secret = env.encryptionKey) {
-    const [ivHex, dataHex] = ciphertext.split(':');
-    const iv = Buffer.from(ivHex, 'hex');
-    const key = Buffer.from(deriveKey(secret));
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-    let out = decipher.update(dataHex, 'hex', 'utf8');
-    out += decipher.final('utf8');
-    return out;
+function decrypt({ ciphertext, iv, tag }, keyHex) {
+    const decipher = crypto.createDecipheriv('aes-256-gcm', keyFrom(keyHex), Buffer.from(iv, 'hex'));
+    decipher.setAuthTag(Buffer.from(tag, 'hex'));
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
 function sha256(value) {

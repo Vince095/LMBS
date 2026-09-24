@@ -34,8 +34,6 @@ const STATUS_META = {
 };
 
 const ENC_TYPES = ['MORTGAGE','LIEN','EASEMENT','CAVEAT'];
-const DISTRICTS = ['Berea','Butha-Buthe','Leribe','Mafeteng','Maseru',
-    "Mohale's Hoek",'Mokhotlong',"Qacha's Nek",'Quthing','Thaba-Tseka'];
 
 function TypeBadge({ type }) {
     const m = TYPE_META[type] || { bg:'#f1f5f9', fg:'#475569', icon:'info' };
@@ -387,7 +385,9 @@ export default function EncumbrancesPage() {
         }
     }, [page, filterType, filterStatus, filterPin]);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { load(1); setPage(1); }, [filterType, filterStatus, filterPin]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { load(page); }, [page]);
 
     function handleDone(msg) {

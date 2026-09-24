@@ -13,5 +13,7 @@ module.exports = {
     Encumbrance: require('./Encumbrance'),
     Notification: require('./Notification'),
     AuditLog: require('./AuditLog'),
-    Signature: require('./Signature'),
+    ChainRequest: require('./ChainRequest'),
+    ChainCursor: require('./ChainCursor'),
+    StoredDocument: require('./StoredDocument'),
 };

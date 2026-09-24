@@ -7,6 +7,7 @@ import './theme/global.css';
 
 import { I18nProvider } from './i18n';
 import { AuthProvider } from './auth';
+import { ChainProvider } from './chain/ChainContext';
 import AppRouter from './govtech/router';
 import reportWebVitals from './reportWebVitals';
 
@@ -16,7 +17,9 @@ root.render(
         <I18nProvider defaultLang="ses">
             <BrowserRouter>
                 <AuthProvider>
-                    <AppRouter />
+                    <ChainProvider>
+                        <AppRouter />
+                    </ChainProvider>
                 </AuthProvider>
             </BrowserRouter>
         </I18nProvider>

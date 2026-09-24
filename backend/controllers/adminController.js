@@ -79,11 +79,9 @@ async function updateUser(req, res, next) {
         if (district  !== undefined) update.district  = district;
         if (lnid      !== undefined) update.lnid      = lnid;
 
-        var user = await User.findByIdAndUpdate(
-            req.params.userId,
-            { $set: update },
-            { new: true, runValidators: true }
-        ).select('-passwordHash -__v');
+        var matched = (await User.updateOne({ _id: req.params.userId }, { $set: update }, { runValidators: true })).matchedCount;
+        // Re-read with the projection (portable across MongoDB-compatible servers).
+        var user = matched ? await User.findById(req.params.userId).select('-passwordHash -__v') : null;
         if (!user) throw new HttpError(404, 'User not found');
 
         res.json({ success: true, user });
@@ -99,11 +97,9 @@ async function deactivateUser(req, res, next) {
         if (req.user && req.params.userId === String(req.user.id)) {
             throw new HttpError(409, 'An admin cannot deactivate their own account');
         }
-        var user = await User.findByIdAndUpdate(
-            req.params.userId,
-            { $set: { isActive: false } },
-            { new: true }
-        ).select('-passwordHash -__v');
+        var matched = (await User.updateOne({ _id: req.params.userId }, { $set: { isActive: false } })).matchedCount;
+        // Re-read with the projection (portable across MongoDB-compatible servers).
+        var user = matched ? await User.findById(req.params.userId).select('-passwordHash -__v') : null;
         if (!user) throw new HttpError(404, 'User not found');
         res.json({ success: true, user });
     } catch (err) { next(err); }
@@ -115,11 +111,9 @@ async function deactivateUser(req, res, next) {
  */
 async function activateUser(req, res, next) {
     try {
-        var user = await User.findByIdAndUpdate(
-            req.params.userId,
-            { $set: { isActive: true, failedLoginAttempts: 0 }, $unset: { lockedUntil: 1 } },
-            { new: true }
-        ).select('-passwordHash -__v');
+        var matched = (await User.updateOne({ _id: req.params.userId }, { $set: { isActive: true, failedLoginAttempts: 0 }, $unset: { lockedUntil: 1 } })).matchedCount;
+        // Re-read with the projection (portable across MongoDB-compatible servers).
+        var user = matched ? await User.findById(req.params.userId).select('-passwordHash -__v') : null;
         if (!user) throw new HttpError(404, 'User not found');
         res.json({ success: true, user });
     } catch (err) { next(err); }

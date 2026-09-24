@@ -19,8 +19,7 @@ function fmtDate(d) {
 }
 
 export default function BlockchainCertificate() {
-    const { id = 'PRCL-8821-A' } = useParams();
-    const fallbackHash = '0x7A9B3E2F4C8D1A5B6CDB94EAB132C3D40E7F4A788CB3D5E12A3B45CD6E7F8A99';
+    const { id = '' } = useParams();
 
     const [cert, setCert] = useState(null);
     const [error, setError] = useState(null);
@@ -37,13 +36,14 @@ export default function BlockchainCertificate() {
 
     const display = {
         pin:      (cert && (cert.parcelPin || cert.deedNumber)) || id,
-        owner:    (cert && cert.currentOwner) || 'Metro Holdings LLC',
-        issued:   cert && cert.issueDate ? fmtDate(cert.issueDate) : 'October 24, 2023',
-        expiry:   (cert && cert.expiry) || 'Perpetual (Fee Simple)',
-        legal:    (cert && cert.legalDescription) || 'Lot 14, Block 7, Sector 4 of the Central Commercial District Subdivision, as recorded in Plat Book 42, Page 118. Total area: 0.84 acres.',
-        proof:    (cert && cert.proofHash) || fallbackHash,
-        signer:   (cert && cert.signedBy) || 'LMBS Authority Node 04',
-        verified: !cert || cert.verified !== false,
+        owner:    (cert && cert.currentOwner) || '—',
+        issued:   cert && cert.issueDate ? fmtDate(cert.issueDate) : '—',
+        expiry:   (cert && cert.expiry) || '—',
+        legal:    (cert && cert.legalDescription) || '—',
+        // Real execution transaction only; never a placeholder.
+        proof:    (cert && cert.proofHash) || 'Not anchored on-chain',
+        signer:   (cert && cert.signedBy) || '—',
+        verified: !!(cert && cert.verified),
     };
 
     // Encode the verification URL into the QR. Anyone scanning the printed

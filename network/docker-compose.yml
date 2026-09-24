@@ -1,0 +1,71 @@
+# Four-validator Hyperledger Besu QBFT network (Docker alternative to scripts/start.sh).
+#
+#   MODE=docker scripts/setup.sh     # generates keys, genesis, allowlists with the IPs below
+#   docker compose up -d
+#   scripts/fault-tolerance.sh       # works the same (uses host ports 8545-8548)
+#   docker compose stop node4        # manual fault injection
+#
+# NOTE: tested configuration is the native one (scripts/start.sh). This file
+# mirrors the same flags for machines where installing Besu is inconvenient.
+x-besu: &besu
+  image: hyperledger/besu:25.9.0
+  user: root
+  volumes:
+    - ./generated:/opt/lmbs
+  networks: [lmbs]
+  restart: unless-stopped
+
+x-flags: &flags >-
+  --genesis-file=/opt/lmbs/genesis.json
+  --sync-mode=FULL
+  --p2p-port=30303
+  --rpc-http-enabled --rpc-http-host=0.0.0.0 --rpc-http-port=8545
+  --rpc-http-api=ETH,NET,QBFT,WEB3,TXPOOL,PERM
+  --rpc-http-cors-origins=http://localhost:3000
+  --host-allowlist=*
+  --min-gas-price=0
+  --revert-reason-enabled
+  --permissions-nodes-config-file-enabled
+  --permissions-accounts-config-file-enabled
+  --permissions-nodes-config-file=/opt/lmbs/permissions_config.toml
+  --permissions-accounts-config-file=/opt/lmbs/permissions_config.toml
+
+services:
+  node1:
+    <<: *besu
+    container_name: lmbs-node1
+    entrypoint: ["/bin/sh", "-c", "exec /opt/besu/bin/besu --data-path=/opt/lmbs/node1/data --node-private-key-file=/opt/lmbs/node1/key --p2p-host=172.16.239.11 $$FLAGS"]
+    environment: { FLAGS: *flags }
+    ports: ["8545:8545"]
+    networks: { lmbs: { ipv4_address: 172.16.239.11 } }
+  node2:
+    <<: *besu
+    container_name: lmbs-node2
+    entrypoint: ["/bin/sh", "-c", "exec /opt/besu/bin/besu --data-path=/opt/lmbs/node2/data --node-private-key-file=/opt/lmbs/node2/key --p2p-host=172.16.239.12 --bootnodes=$$(head -n1 /opt/lmbs/enodes.txt) $$FLAGS"]
+    environment: { FLAGS: *flags }
+    ports: ["8546:8545"]
+    networks: { lmbs: { ipv4_address: 172.16.239.12 } }
+    depends_on: [node1]
+  node3:
+    <<: *besu
+    container_name: lmbs-node3
+    entrypoint: ["/bin/sh", "-c", "exec /opt/besu/bin/besu --data-path=/opt/lmbs/node3/data --node-private-key-file=/opt/lmbs/node3/key --p2p-host=172.16.239.13 --bootnodes=$$(head -n1 /opt/lmbs/enodes.txt) $$FLAGS"]
+    environment: { FLAGS: *flags }
+    ports: ["8547:8545"]
+    networks: { lmbs: { ipv4_address: 172.16.239.13 } }
+    depends_on: [node1]
+  node4:
+    <<: *besu
+    container_name: lmbs-node4
+    entrypoint: ["/bin/sh", "-c", "exec /opt/besu/bin/besu --data-path=/opt/lmbs/node4/data --node-private-key-file=/opt/lmbs/node4/key --p2p-host=172.16.239.14 --bootnodes=$$(head -n1 /opt/lmbs/enodes.txt) $$FLAGS"]
+    environment: { FLAGS: *flags }
+    ports: ["8548:8545"]
+    networks: { lmbs: { ipv4_address: 172.16.239.14 } }
+    depends_on: [node1]
+
+networks:
+  lmbs:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.239.0/24

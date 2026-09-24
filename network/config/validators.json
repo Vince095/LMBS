@@ -1,0 +1,9 @@
+{
+  "_comment": "Named institutions that operate the four QBFT validator nodes in the prototype. Synthetic assignment for demonstration; production membership is a governance decision.",
+  "validators": [
+    { "node": "node1", "institution": "Land Administration Authority (LAA)", "rpcPort": 8545, "p2pPort": 30303 },
+    { "node": "node2", "institution": "Department of Survey and Physical Planning", "rpcPort": 8546, "p2pPort": 30304 },
+    { "node": "node3", "institution": "Deeds Registry", "rpcPort": 8547, "p2pPort": 30305 },
+    { "node": "node4", "institution": "Ministry of Local Government", "rpcPort": 8548, "p2pPort": 30306 }
+  ]
+}

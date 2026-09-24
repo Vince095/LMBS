@@ -42,4 +42,16 @@ async function changePassword(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { register, login, logout, me, changePassword };
+async function walletChallenge(req, res, next) {
+    try {
+        res.json(await authService.walletChallenge(req.user.id));
+    } catch (err) { next(err); }
+}
+
+async function walletVerify(req, res, next) {
+    try {
+        res.json(await authService.walletVerify(req.user.id, req.body || {}));
+    } catch (err) { next(err); }
+}
+
+module.exports = { register, login, logout, me, changePassword, walletChallenge, walletVerify };
