@@ -24,7 +24,7 @@ const polygonSchema = new Schema({
 
 const parcelSchema = new Schema({
     pin: { type: String, required: true, unique: true, index: true }, // SRS FR-LR-005
-    tokenId: { type: Number, index: true, sparse: true },             // ERC721 id
+    tokenId: { type: String, index: true, sparse: true },             // ERC721 id
 
     district: { type: String, enum: LESOTHO_DISTRICTS, required: true, index: true },
     location: { type: polygonSchema, default: undefined },            // sparse on purpose
@@ -38,13 +38,15 @@ const parcelSchema = new Schema({
     },
     status: {
         type: String,
-        enum: ['ACTIVE', 'DISPUTED', 'ENCUMBERED', 'REVOKED', 'DRAFT'],
+        // PENDING_APPROVAL: registration request submitted on-chain, awaiting M-of-N approval.
+        // Only the chain indexer moves a parcel to ACTIVE (after RequestExecuted).
+        enum: ['ACTIVE', 'DISPUTED', 'ENCUMBERED', 'REVOKED', 'DRAFT', 'PENDING_APPROVAL', 'REJECTED'],
         default: 'ACTIVE',
         index: true,
     },
 
     // FR-LR-008: draft parcels auto-expire after 30 days (TTL index below)
-    draftExpiresAt: { type: Date, index: true },
+    draftExpiresAt: { type: Date },
 
     titleDeedRef: { type: String, index: true },
     registeredBy: {
@@ -53,6 +55,8 @@ const parcelSchema = new Schema({
         orgId: String,
     },
     blockchainTxId: { type: String, index: true },
+    chainRequestId: { type: Number, index: true, sparse: true },
+    parcelKey: { type: String, index: true, sparse: true }, // keccak256(normalised pin), as on-chain
 
     // IPFS / off-chain document references (FR-LR-004)
     // NOTE: encumbrances and disputes are handled by separate contracts and
@@ -73,7 +77,9 @@ const parcelSchema = new Schema({
             default: 'OTHER',
         },
         name:       { type: String, trim: true },   // original filename
-        ipfsCid:    String,                          // IPFS Content Identifier
+        ipfsCid:    String,                          // IPFS Content Identifier (optional)
+        docId:      String,                          // encrypted document store id
+        documentHash: String,                        // keccak256 of the plaintext (anchored on-chain)
         sha256:     String,                          // SHA-256 hex of file bytes
         sizeKB:     { type: Number, min: 0 },        // actual file size in KB
         uploadedBy: { type: String, trim: true },    // officer name or wallet address

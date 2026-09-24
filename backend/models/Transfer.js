@@ -15,13 +15,19 @@ const WORKFLOW_STEPS = [
     'COMPLETE',
 ];
 
+// On-chain life-cycle (LandRegistry): PENDING_APPROVAL -> APPROVED -> COMPLETE,
+// or REJECTED / CANCELLED. Only the chain indexer changes these statuses.
+// The PENDING_* values are kept for records created before the refactor.
 const STATUSES = [
+    'PENDING_APPROVAL',
+    'APPROVED',
+    'COMPLETE',
+    'REJECTED',
+    'CANCELLED',
     'PENDING_OWNER',
     'PENDING_KYC',
     'PENDING_NOTARY',
     'PENDING_OFFICER',
-    'COMPLETE',
-    'CANCELLED',
 ];
 
 const partySchema = new Schema({
@@ -40,7 +46,7 @@ const stepSchema = new Schema({
 const transferSchema = new Schema({
     transferId: { type: String, required: true, unique: true, index: true },
     parcelPin: { type: String, required: true, index: true },
-    tokenId: { type: Number, index: true },
+    tokenId: { type: String, index: true },
 
     fromOwner: { type: partySchema, required: true },
     toOwner: { type: partySchema, required: true },
@@ -49,7 +55,9 @@ const transferSchema = new Schema({
     stampDutyLSL: { type: Number, default: 0, min: 0 },     // computed by LRA adapter
     isGiftTransfer: { type: Boolean, default: false },      // FR-OT-008
 
-    status: { type: String, enum: STATUSES, default: 'PENDING_OWNER', index: true },
+    status: { type: String, enum: STATUSES, default: 'PENDING_APPROVAL', index: true },
+    chainRequestId: { type: Number, index: true, sparse: true },
+    documentHash: String,
     workflowSteps: { type: [stepSchema], default: () => WORKFLOW_STEPS.map((s) => ({ step: s })) },
 
     escrowRef: String,

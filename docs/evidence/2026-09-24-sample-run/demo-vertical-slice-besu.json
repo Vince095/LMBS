@@ -1,0 +1,61 @@
+{
+  "network": "besu",
+  "chainId": 2026,
+  "parcel": "DEMO-663751-001",
+  "ok": true,
+  "log": [
+    {
+      "step": "1. Registrar submits first registration (parcel reserved)",
+      "parcel": "DEMO-663751-001",
+      "requestId": "1",
+      "parcelKey": "0x6c9454ec8c73f9a62484347e382baed964bd85316dab6550567b8361ca214bc3",
+      "tx": "0xdf36ff997d5b73c693af9e686a85a85749d9386f17ea6d28cd06cd54b115cc2e",
+      "block": 40
+    },
+    {
+      "step": "2. Duplicate requests are rejected while the first is pending",
+      "sameNumber": "ParcelUnavailable",
+      "reformattedNumber": "ParcelUnavailable",
+      "variantTried": "\" demo-663751 - 001 \""
+    },
+    {
+      "step": "3a. LAA approves (direct transaction)",
+      "tx": "0xddd3318e41c2dce690e987bdeab762219def6fadf01ad2756f125a06c475c4a4",
+      "block": 41
+    },
+    {
+      "step": "3b. Survey Department approves (direct transaction)",
+      "tx": "0x5260ddf3a9543e368a6fa61d93057876d853d24743f59783e2959295c97c4370",
+      "block": 42
+    },
+    {
+      "step": "3c. Deeds Registry signs an EIP-712 approval off-line; registrar relays it (threshold reached)",
+      "signer": "0xCC3b66D7e0B940C7CE0FAB0A6395a7933f1B210d",
+      "tx": "0x628cb08b2e7b492382db81f4b0bc6b23e07efceda7983665ddef82fd364e404d",
+      "block": 43
+    },
+    {
+      "step": "4. Title minted after threshold",
+      "requestStatus": "EXECUTED",
+      "owner": "0xe80a39442e6e20452C451C70C6eF6582Cfc1558a",
+      "expectedOwner": "0xe80a39442e6e20452C451C70C6eF6582Cfc1558a",
+      "replayedSignature": "NonceAlreadyUsed"
+    },
+    {
+      "step": "5. Owner initiates transfer; bypass attempts fail",
+      "requestId": "2",
+      "tx": "0xa4e93588068c5abc32d7e745e5ed26e8e31b5355e5cb34a75d3bf67805907074",
+      "block": 44,
+      "nonOwnerInitiates": "NotTitleHolder",
+      "validatorInitiates": "NotTitleHolder",
+      "directTransferFrom": "DirectTransferDisabled"
+    },
+    {
+      "step": "6. Governed transfer completes after 3-of-4 approvals",
+      "requestStatus": "EXECUTED",
+      "newOwner": "0x9AE9e17ced429d2359dFb9E14b272324212b2826",
+      "expectedOwner": "0x9AE9e17ced429d2359dFb9E14b272324212b2826",
+      "history": "1, 2"
+    }
+  ]
+}

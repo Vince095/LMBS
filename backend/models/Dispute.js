@@ -26,7 +26,7 @@ const STATUSES = ['OPEN', 'UNDER_REVIEW', 'ESCALATED', 'RESOLVED', 'WITHDRAWN'];
 const disputeSchema = new Schema({
     disputeId: { type: String, required: true, unique: true, index: true },
     parcelPin: { type: String, required: true, index: true },
-    tokenId: { type: Number, index: true },
+    tokenId: { type: String, index: true },
 
     filerLnid: String,
     filerAddress: { type: String, lowercase: true, required: true },

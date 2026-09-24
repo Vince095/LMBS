@@ -51,20 +51,6 @@ function getEventStyle(eventType) {
     return EVENT_STYLE[eventType] || { color: '#475569', bg: '#F8FAFC', icon: 'info' };
 }
 
-// ─── Fallback sample data
-const SAMPLE_LEDGER = [
-    { date: '2023-11-04', eventType: 'TRANSFER_COMPLETED', principal: 'Apex Holdings Ltd.',       principalSub: 'from Estate of J. Reynolds', hash: '0x7fa3…c91e' },
-    { date: '2022-03-18', eventType: 'TITLE_AMENDED',      principal: 'LAA Registry Officer',     principalSub: 'Owner name correction',      hash: '0x3b1c…a84f' },
-    { date: '2020-06-08', eventType: 'BOUNDARY_UPDATED',   principal: 'Surveyor-General Office',  principalSub: null,                         hash: '0x4d8e…f220' },
-    { date: '2015-09-22', eventType: 'TITLE_ISSUED',       principal: 'Estate of J. Reynolds',    principalSub: 'Deed No. TD-2015-00421',    hash: '0x9a21…b77c' },
-    { date: '1998-02-15', eventType: 'LEGACY_DIGITISATION',principal: 'System Admin',             principalSub: 'Paper records digitised',    hash: '0x2f0d…5510' },
-];
-
-const SAMPLE_DOCS = [
-    { id: 'sd-1', name: 'Deed of Sale',             type: 'DEED_OF_SALE',   uploadedAt: '2023-11-04', sizeKB: 482  },
-    { id: 'sd-2', name: 'Survey Plan — Topograph.',  type: 'SURVEY_PLAN',   uploadedAt: '2023-04-12', sizeKB: 1240 },
-    { id: 'sd-3', name: 'Environmental Assessment',  type: 'ENV_ASSESSMENT', uploadedAt: '2020-06-08', sizeKB: 328  },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtSize(kb) {
@@ -382,8 +368,8 @@ export default function PropertyDetails() {
     const display             = pin.startsWith('Parcel ') ? pin : ('Parcel ' + pin);
 
     const [cert,            setCert]            = useState(null);
-    const [ledger,          setLedger]          = useState(SAMPLE_LEDGER);
-    const [docs,            setDocs]            = useState(SAMPLE_DOCS);
+    const [ledger,          setLedger]          = useState([]);
+    const [docs,            setDocs]            = useState([]);
     const [showUpload,      setShowUpload]      = useState(false);
     const [showDisputeModal,setShowDisputeModal]= useState(false);
 

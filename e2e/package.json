@@ -1,0 +1,7 @@
+{
+  "name": "lmbs-ui-e2e",
+  "private": true,
+  "description": "Browser end-to-end test of the portal's wallet-based registration and approval flow",
+  "scripts": { "test": "node ui-wallet-flow.js" },
+  "dependencies": { "ethers": "^6.13.0", "playwright": "^1.47.0" }
+}

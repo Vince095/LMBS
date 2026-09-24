@@ -11,8 +11,8 @@ export const API_BASE = process.env.REACT_APP_API_BASE || 'http://localhost:5000
 export const ENDPOINTS = {
     profiles:      `${API_BASE}/api/profiles`,
     titles:        `${API_BASE}/api/titles`,
-    signatures:    `${API_BASE}/api/signatures`,
-    transacs:      `${API_BASE}/api/transacs`,
+    chain:         `${API_BASE}/api/chain`,
+    documents:     `${API_BASE}/api/documents`,
     disputes:      `${API_BASE}/api/disputes`,
     encumbrances:  `${API_BASE}/api/encumbrances`,
     search:        `${API_BASE}/api/search`,

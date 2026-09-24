@@ -53,8 +53,7 @@ export default function Sidebar() {
     const role      = user?.role || 'CITIZEN';
     const isAdmin   = role === 'ADMIN';
     const isOfficer = role === 'REGISTRY_OFFICER' || isAdmin;
-    const isNotary  = role === 'NOTARY' || isOfficer;
-    const canWriteEnc = ['FINANCIAL_INST','REGISTRY_OFFICER','ADMIN'].includes(role);
+    const isNotary  = ['NOTARY', 'SURVEYOR', 'AUDITOR'].includes(role) || isOfficer;
 
     const NAV = [
         // ── Core (all users) ────────────────────────────────────────────────
@@ -63,6 +62,7 @@ export default function Sidebar() {
         { to:'/properties',     icon:'verified_user',        label: t('govtech.nav.landTitles')       },
         { to:'/transactions',   icon:'swap_horiz',           label: t('govtech.nav.transactions')     },
         { to:'/documents',      icon:'description',          label: t('govtech.nav.documents')        },
+        { to:'/registry',       icon:'account_balance_wallet', label: t('govtech.nav.registry', 'Blockchain registry') },
 
         { divider: true },
 

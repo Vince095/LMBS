@@ -1,13 +1,14 @@
 {
   "name": "lmbs-backend",
-  "version": "1.0.0",
-  "description": "Land Management Blockchain System backend API (SAD section 6)",
+  "version": "1.1.0",
+  "description": "Land Management Blockchain System backend API: auth, off-chain documents, chain indexer (read models)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "seed": "node ../../scripts/seed-demo-data.js",
-    "test": "echo \"Tests pending\" && exit 0"
+    "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage",
+    "gen:secrets": "node scripts/generate-env.js"
   },
   "keywords": [
     "lmbs",
@@ -23,8 +24,29 @@
     "dotenv": "^17.4.2",
     "ethers": "^6.13.0",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^7.2.0",
-    "mongoose": "^9.6.1"
+    "mongoose": "^9.6.1",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.3.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "setupFiles": [
+      "<rootDir>/test/setupEnv.js"
+    ],
+    "testMatch": [
+      "<rootDir>/test/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "middleware/**/*.js",
+      "services/{authService,chainService,documentStore,cryptoService,indexerService}.js",
+      "config/env.js"
+    ]
   }
 }

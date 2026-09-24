@@ -1,0 +1,61 @@
+{
+  "network": "besu",
+  "chainId": 2026,
+  "parcel": "DEMO-169510-001",
+  "ok": true,
+  "log": [
+    {
+      "step": "1. Registrar submits first registration (parcel reserved)",
+      "parcel": "DEMO-169510-001",
+      "requestId": "185",
+      "parcelKey": "0x36c8869ccb70a8d0460fb2a29dbb3539431ebc68f6b852d92953da27c7e1ac1e",
+      "tx": "0xfe927505fd52fe888b9812420f1b377f35061dd6ccfc87a199697679d2b8c164",
+      "block": 735
+    },
+    {
+      "step": "2. Duplicate requests are rejected while the first is pending",
+      "sameNumber": "ParcelUnavailable",
+      "reformattedNumber": "ParcelUnavailable",
+      "variantTried": "\" demo-169510 - 001 \""
+    },
+    {
+      "step": "3a. LAA approves (direct transaction)",
+      "tx": "0xc96d64c8be5ae7cbb26c6e3996051809476fcedac6c41b53107aa45ee09c49da",
+      "block": 736
+    },
+    {
+      "step": "3b. Survey Department approves (direct transaction)",
+      "tx": "0x4a049e82bb8e3a3be7306d703d42c673a938234002eb6f1ea17a54e9a28f073d",
+      "block": 737
+    },
+    {
+      "step": "3c. Deeds Registry signs an EIP-712 approval off-line; registrar relays it (threshold reached)",
+      "signer": "0xCC3b66D7e0B940C7CE0FAB0A6395a7933f1B210d",
+      "tx": "0x1200113d7ce4ed140d9a09c484c1bca20d2a17570404066bf6f95e5b73e21d00",
+      "block": 738
+    },
+    {
+      "step": "4. Title minted after threshold",
+      "requestStatus": "EXECUTED",
+      "owner": "0xe80a39442e6e20452C451C70C6eF6582Cfc1558a",
+      "expectedOwner": "0xe80a39442e6e20452C451C70C6eF6582Cfc1558a",
+      "replayedSignature": "NonceAlreadyUsed"
+    },
+    {
+      "step": "5. Owner initiates transfer; bypass attempts fail",
+      "requestId": "186",
+      "tx": "0x6fc1bf623518d3acd95c7d20acbb8e3dfb31125d04289b63fb4c69785be7946d",
+      "block": 739,
+      "nonOwnerInitiates": "NotTitleHolder",
+      "validatorInitiates": "NotTitleHolder",
+      "directTransferFrom": "DirectTransferDisabled"
+    },
+    {
+      "step": "6. Governed transfer completes after 3-of-4 approvals",
+      "requestStatus": "EXECUTED",
+      "newOwner": "0x9AE9e17ced429d2359dFb9E14b272324212b2826",
+      "expectedOwner": "0x9AE9e17ced429d2359dFb9E14b272324212b2826",
+      "history": "185, 186"
+    }
+  ]
+}

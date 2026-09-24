@@ -17,7 +17,7 @@ function summariseBody(body) {
     try {
         const json = JSON.parse(JSON.stringify(body));
         // Strip likely-sensitive fields.
-        ['mnemonicPhrase', 'password', 'privateKey', 'secret', 'token'].forEach((k) => {
+        ['password', 'currentPassword', 'newPassword', 'privateKey', 'secret', 'token', 'signature', 'contentBase64'].forEach((k) => {
             if (k in json) json[k] = '<redacted>';
         });
         return json;

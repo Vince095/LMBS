@@ -1,39 +1,39 @@
 /**
- * Role-Based Access Control middleware
+ * Role-Based Access Control middleware.
  *
- * Usage:
  *   router.post('/foo', rbac(['REGISTRY_OFFICER', 'ADMIN']), handler);
  *
- * Behaves consistently with auth.js: when env.requireAuth is false the
- * middleware logs the would-be denial but still allows the request through, so
- * we don't break the existing frontend during the targeted refactor. When
- * env.requireAuth is true it returns 403 to unauthorised users.
+ * Always enforced: an unauthenticated caller gets 401 and a caller without
+ * one of the listed roles gets 403. (The former "log and allow" mode has been
+ * removed.) ADMIN is accepted on every off-chain administrative route; on-chain
+ * actions are additionally checked by the smart contracts' RoleAuthority.
  */
 
-const env = require('../config/env');
-
 function rbac(allowedRoles = []) {
+    if (!Array.isArray(allowedRoles) || allowedRoles.length === 0) {
+        throw new Error('rbac() needs at least one role');
+    }
     const allow = new Set(allowedRoles.map((r) => r.toUpperCase()));
 
     return (req, res, next) => {
-        const role = (req.user?.role || '').toUpperCase();
-        const ok = allow.size === 0 || allow.has(role) || role === 'ADMIN';
-
-        if (!ok) {
-            if (env.requireAuth) {
-                return res.status(403).json({
-                    error: 'Forbidden',
-                    requiredRole: [...allow],
-                    actualRole: role || null,
-                });
-            }
-            /* eslint-disable no-console */
-            console.warn(`[rbac] would-deny ${req.method} ${req.path}: role=${role || 'none'} required=${[...allow].join('|')}`);
-            /* eslint-enable no-console */
-        }
-
-        return next();
+        if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+        const role = (req.user.role || '').toUpperCase();
+        if (allow.has(role) || role === 'ADMIN') return next();
+        return res.status(403).json({ error: 'Forbidden', requiredRole: [...allow] });
     };
 }
 
-module.exports = { rbac };
+/** Allows the resource owner (by user id or verified wallet) or one of the roles. */
+function selfOrRoles(getOwner, roles) {
+    const allow = new Set(roles.map((r) => r.toUpperCase()));
+    return (req, res, next) => {
+        if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+        const role = (req.user.role || '').toUpperCase();
+        if (allow.has(role) || role === 'ADMIN') return next();
+        const owner = String(getOwner(req) || '').toLowerCase();
+        if (owner && (owner === String(req.user.id).toLowerCase() || owner === req.user.address)) return next();
+        return res.status(403).json({ error: 'Forbidden' });
+    };
+}
+
+module.exports = { rbac, selfOrRoles };

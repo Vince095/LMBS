@@ -1,0 +1,122 @@
+{
+  "parcel": "E2E-MUFC68TS-001",
+  "passed": 23,
+  "failed": 0,
+  "results": [
+    {
+      "name": "admin can log in",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "self-registration ignores a requested ADMIN role",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin assigns REGISTRY_OFFICER to Synthetic Registrar",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "admin assigns REGISTRY_OFFICER to Synthetic KYC Officer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "wallets linked by signed challenge",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a wallet already linked to another account cannot be claimed",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "identity anchor contains no personal data",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "issuer anchored the new citizen identity on-chain",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "documents stored encrypted, hashes returned",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "backend records registration only after verifying the on-chain tx",
+      "ok": true,
+      "detail": "status 201"
+    },
+    {
+      "name": "another user cannot claim someone else's submission",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "a fabricated transaction hash is rejected",
+      "ok": true,
+      "detail": "status 409"
+    },
+    {
+      "name": "indexer activated parcel and deed after on-chain execution",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "late metadata does not regress an executed registration",
+      "ok": true,
+      "detail": "parcel ACTIVE, deed ACTIVE"
+    },
+    {
+      "name": "certificate verified against the chain (owner = alice)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "transfer metadata recorded against the verified on-chain request",
+      "ok": true,
+      "detail": "status 201"
+    },
+    {
+      "name": "off-chain \"advance\" is gone (410)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "transfer COMPLETE in the read model",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "certificate now shows dave as on-chain owner",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "stored document intact and matches on-chain hash",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "one modified byte in the encrypted file is detected",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "anonymous document download refused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "citizen cannot list user profiles",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

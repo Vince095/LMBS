@@ -15,11 +15,6 @@ import { searchService } from '../../services';
 
 const DISTRICTS = ['All Districts', 'Maseru', 'Berea', 'Leribe', 'Mafeteng', 'Mokhotlong'];
 
-const SAMPLE_RESULTS = [
-    { pin: 'PRCL-8821-A', sector: 'Sector 7G, Industrial Quadrant',  status: 'verified', hash: '0x4b...a19f' },
-    { pin: 'PRCL-8822-B', sector: 'Sector 7G, Commercial Zone',      status: 'pending',  hash: 'Awaiting block...' },
-    { pin: 'PRCL-9014-X', sector: 'Northern Grid, Residential',      status: 'disputed', hash: '0x9c...f44b' },
-];
 
 function SearchPanel({ filters, setFilters, onSearch, results, latencyMs }) {
     return (
@@ -201,7 +196,7 @@ export default function SearchAndMap() {
         pin: params.get('q') || '',
         owner: '',
     });
-    const [results, setResults] = useState(SAMPLE_RESULTS);
+    const [results, setResults] = useState([]);
     const [latencyMs, setLatencyMs] = useState(12);
 
     const onSearch = useCallback(async () => {
@@ -216,10 +211,10 @@ export default function SearchAndMap() {
                 status: p.hasActiveDispute ? 'disputed' : (p.status === 'PENDING' ? 'pending' : 'verified'),
                 hash: p.blockchainTxId ? `${p.blockchainTxId.slice(0, 6)}...${p.blockchainTxId.slice(-4)}` : '—',
             }));
-            setResults(mapped.length ? mapped : SAMPLE_RESULTS);
+            setResults(mapped);
         } catch {
-            // Fall back to demo data if backend isn't reachable.
-            setResults(SAMPLE_RESULTS);
+            // No demo fallback: show an empty result set when the backend is unreachable.
+            setResults([]);
         } finally {
             setLatencyMs(performance.now() - start);
         }
