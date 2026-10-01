@@ -28,6 +28,7 @@ const encumbranceSchema = new Schema({
     startDate: { type: Date, default: Date.now },
     expiryDate: Date,
     dischargeDate: Date,
+    dischargedBy: { type: String, lowercase: true },
 
     status: { type: String, enum: STATUSES, default: 'ACTIVE', index: true },
     description: String,

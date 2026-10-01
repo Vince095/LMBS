@@ -11,12 +11,14 @@
  *
  * Needs: Besu + deployed contracts, backend on :5000, portal on :3000
  * (`npm start` or `npx serve -s build -l 3000`), an ADMIN (scripts/create-admin.js).
- *   ADMIN_EMAIL=... ADMIN_PASSWORD=... node ui-wallet-flow.js
+ *   npm test -- --email admin@laa.test --password "..."   (or ADMIN_EMAIL / ADMIN_PASSWORD)
  */
+/* global window */ // used inside page.addInitScript (browser context)
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 const { ethers } = require('ethers');
+const { arg } = require('../backend/scripts/args');
 
 const APP = process.env.APP_URL || 'http://localhost:3000';
 const API = process.env.API_BASE || 'http://localhost:5000';
@@ -116,7 +118,7 @@ async function releaseDevWallets() {
 async function main() {
     fs.mkdirSync(OUT, { recursive: true });
     await releaseDevWallets();
-    const admin = (await api('POST', '/api/auth/login', { body: { email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD } })).data;
+    const admin = (await api('POST', '/api/auth/login', { body: { email: arg('email', 'ADMIN_EMAIL'), password: arg('password', 'ADMIN_PASSWORD') } })).data;
     step('launching browser');
     const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
     const pin = `UI-${Date.now().toString(36).toUpperCase()}-001`;

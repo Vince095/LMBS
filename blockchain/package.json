@@ -14,11 +14,14 @@
     "demo:besu": "hardhat run scripts/demo-vertical-slice.js --network besu",
     "reliability:besu": "hardhat run scripts/reliability.js --network besu",
     "benchmark:besu": "hardhat run scripts/benchmark.js --network besu",
-    "export-abi": "node scripts/export-abi.js"
+    "export-abi": "node scripts/export-abi.js",
+    "test:offline": "cross-env HARDHAT_LOCAL_SOLC=1 hardhat test",
+    "compile:offline": "cross-env HARDHAT_LOCAL_SOLC=1 hardhat compile"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^6.1.2",
     "@openzeppelin/contracts": "^5.6.1",
+    "cross-env": "^7.0.3",
     "dotenv": "^18.0.3",
     "hardhat": "^2.29.1",
     "solc": "^0.8.28"

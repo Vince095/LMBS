@@ -1,5 +1,6 @@
 /**
- * Transfer workflow REST service — wraps /api/transfers endpoints.
+ * Transfer metadata REST service — wraps /api/transfers.
+ * Approval and cancellation are on-chain actions (see src/chain/registry.js).
  */
 
 import { http } from './httpClient';
@@ -18,6 +19,4 @@ export const transferService = {
     pending:  ()                => http.get(`${BASE}/pending`),
     initiate: (payload)         => http.post(BASE, payload),
     getOne:   (id)              => http.get(`${BASE}/${id}`),
-    advance:  (id, body={})     => http.post(`${BASE}/${id}/advance`, body),
-    cancel:   (id, reason='')   => http.post(`${BASE}/${id}/cancel`, { reason }),
 };

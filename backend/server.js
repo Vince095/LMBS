@@ -69,7 +69,6 @@ if (require.main === module) {
     try {
         env.assertSecureConfig();
     } catch (err) {
-        // eslint-disable-next-line no-console
         console.error(`[bootstrap] ${err.message}\nCreate backend/.env from .env.example (npm run gen:secrets).`);
         process.exit(1);
     }
@@ -81,7 +80,8 @@ if (require.main === module) {
             console.log('[bootstrap] MongoDB ready');
             indexer.start(models);
         })
-        .catch((err) => console.error('[bootstrap] MongoDB connection failed', err));
+        .catch((err) => console.error(`[bootstrap] MongoDB connection failed (${env.mongoUri}): ${err.message}\n` +
+            'Start MongoDB and restart the backend.'));
     app.listen(env.port, () => console.log('[bootstrap] LMBS backend listening on :' + env.port));
 }
 

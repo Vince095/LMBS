@@ -2,11 +2,12 @@
  * Network service — exposes Besu chain status and TX lookup to the frontend.
  */
 
+const env = require('../config/env');
 const { getProvider } = require('./chainService');
 
 async function status() {
     const out = {
-        rpcUrl:         process.env.RPC_URL || 'http://127.0.0.1:8560',
+        rpcUrl:         env.rpcUrl,
         chainId:        null,
         blockNumber:    null,
         peerCount:      null,

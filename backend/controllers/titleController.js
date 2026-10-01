@@ -350,7 +350,6 @@ async function saveDraft(req, res, next) {
 async function listDrafts(req, res, next) {
     try {
         const callerName    = req.user?.name || '';
-        const callerAddress = (req.user?.address || '').toLowerCase();
 
         // Find drafts registered by this officer (by address or by officer id)
         const drafts = await Parcel.find({
@@ -382,7 +381,8 @@ async function listDrafts(req, res, next) {
  * Content-Type: text/csv  (or text/plain).
  *
  * Expected CSV header row (order-insensitive, case-insensitive):
- *   parcelNumber, location, district, areaM2, landUse, ownerName, ownerAddress, tokenId
+ *   parcelNumber, location, district, areaM2, landUse
+ * (owner and token columns are ignored: ownership and token ids come only from the chain)
  *
  * All columns except parcelNumber are optional.
  * Creates each row as a DRAFT parcel (status='DRAFT') for officer review.
@@ -431,12 +431,9 @@ async function importCsv(req, res, next) {
                     continue;
                 }
 
-                const ownerName    = col(raw, 'ownername');
-                const ownerAddress = (col(raw, 'owneraddress') || '').toLowerCase();
                 const districtRaw  = col(raw, 'district') || 'Maseru';
                 const areaRaw      = Number(col(raw, 'arem2') || col(raw, 'area')) || 0;
                 const landUseRaw   = (col(raw, 'landuse') || 'RESIDENTIAL').toUpperCase();
-                const tokenIdRaw   = col(raw, 'tokenid');
 
                 const validLandUse = ['RESIDENTIAL','COMMERCIAL','AGRICULTURAL','INDUSTRIAL','OTHER'];
                 const landUse = validLandUse.includes(landUseRaw) ? landUseRaw : 'OTHER';
@@ -453,7 +450,6 @@ async function importCsv(req, res, next) {
                             legacyAddress:  col(raw, 'location'),
                             areaM2:         areaRaw,
                             landUse,
-                            tokenId:        tokenIdRaw ? Number(tokenIdRaw) : undefined,
                             registeredBy: {
                                 officerId: req.user?.id || null,
                                 name:      callerName,
@@ -467,7 +463,6 @@ async function importCsv(req, res, next) {
                 // No TitleDeed is created here: a deed exists only once the
                 // registration has been submitted on-chain (POST /api/titles)
                 // and becomes ACTIVE only when the chain executes it.
-                void ownerName; void ownerAddress;
 
                 results.imported++;
             } catch (rowErr) {

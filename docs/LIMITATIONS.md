@@ -34,7 +34,10 @@ The status labels used here are **implemented**, **partial** and **planned**.
   **planned**.
 * Account permissioning uses a local allowlist file. Enrolling a new citizen who must *send*
   transactions requires adding the account on every node (`perm_addAccountsToAllowlist` or a
-  new `setup.sh`). Receiving a title needs no enrolment.
+  new `npm run network:setup`). Receiving a title needs no enrolment.
+* The network tool (`network/lmbs-network.js`) is plain Node.js and supports Windows (it
+  launches `besu.bat` and stops nodes with `taskkill`). The recorded runs were on Linux and
+  macOS; repeat them on a Windows machine before relying on Windows-specific results.
 * The Docker Compose file mirrors the tested native configuration but was **not** executed in the
   recorded run.
 * Development keys live in `network/generated/accounts.json` and MetaMask. Production custody

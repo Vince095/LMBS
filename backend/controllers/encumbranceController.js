@@ -83,7 +83,8 @@ async function discharge(req, res, next) {
             throw new HttpError(403, 'Only the encumbrance holder or a Registry Officer may discharge (SEC-ENC-02).');
         }
 
-        const dischargedBy = req.body.dischargedBy || callerAddr;
+        // Recorded from the authenticated caller, never from the request body.
+        const dischargedBy = callerAddr || String(req.user.id);
         const updated = await encumbranceService.discharge(req.params.encumbranceId, dischargedBy);
         res.json(updated);
     } catch (err) { next(err); }

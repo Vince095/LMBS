@@ -1,4 +1,3 @@
-const { ethers } = require('hardhat');
 const { expect } = require('chai');
 const { loadFixture } = require('@nomicfoundation/hardhat-network-helpers');
 const { deployFixture, registerTitle, h } = require('./fixtures');
