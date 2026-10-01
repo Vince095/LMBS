@@ -1,5 +1,5 @@
 /**
- * Creates the first ADMIN account directly in MongoDB (self-registration can
+ * Creates the first ADMIN account (or resets an existing admin's password) directly in MongoDB (self-registration can
  * only create CITIZEN accounts, so the first administrator is bootstrapped here).
  *
  *   npm run create-admin -- --email admin@laa.test --password "a long passphrase"
@@ -22,8 +22,12 @@ async function main() {
     const existing = await User.findOne({ email });
     if (existing) {
         existing.role = 'ADMIN';
+        existing.passwordHash = await bcrypt.hash(password, 12);
+        existing.passwordChangedAt = new Date();
+        existing.failedLoginAttempts = 0;
+        existing.lockedUntil = undefined;
         await existing.save();
-        console.log(`Existing user ${email} promoted to ADMIN.`);
+        console.log(`Existing user ${email} is ADMIN; password reset.`);
     } else {
         await User.create({
             name: arg('name', 'ADMIN_NAME') || 'System Administrator',
