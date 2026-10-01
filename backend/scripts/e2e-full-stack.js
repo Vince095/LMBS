@@ -35,6 +35,12 @@ function check(name, ok, detail = '') {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
 }
 
+function hint(status) {
+    return status === 429
+        ? '\nThe login/registration rate limit was hit. Add AUTH_RATE_LIMIT=1000 to backend/.env, restart the backend, and run again.'
+        : '';
+}
+
 async function api(method, p, { token, body } = {}) {
     const res = await fetch(API + p, {
         method,
@@ -50,16 +56,19 @@ async function signup(name, email) {
     const password = 'synthetic-passphrase-1';
     let r = await api('POST', '/api/auth/register', { body: { name, email, password, role: 'ADMIN' } });
     if (r.status === 409) r = await api('POST', '/api/auth/login', { body: { email, password } });
+    if (!r.data || !r.data.token) throw new Error(`Could not create test user ${email} (HTTP ${r.status}: ${JSON.stringify(r.data)}).${hint(r.status)}`);
     return { ...r.data, password, email };
 }
 
 async function relogin(u) {
     const r = await api('POST', '/api/auth/login', { body: { email: u.email, password: u.password } });
+    if (!r.data || !r.data.token) throw new Error(`Re-login failed for ${u.email} (HTTP ${r.status}).${hint(r.status)}`);
     return { ...u, ...r.data };
 }
 
 async function linkWallet(u, w) {
     const ch = await api('POST', '/api/auth/wallet/challenge', { token: u.token });
+    if (ch.status !== 200) throw new Error(`Wallet challenge failed for ${u.email} (HTTP ${ch.status}: ${JSON.stringify(ch.data)}).${hint(ch.status)}`);
     const signature = await w.signMessage(ch.data.message);
     const r = await api('POST', '/api/auth/wallet/verify', { token: u.token, body: { address: w.address, signature } });
     return { ...u, ...r.data, status: r.status };
@@ -234,4 +243,4 @@ async function main() {
     if (failed.length) process.exitCode = 1;
 }
 
-main().catch((e) => { console.error(e); process.exitCode = 1; });
+main().catch((e) => { console.error(`\nE2E stopped: ${e.message}`); process.exitCode = 1; });
