@@ -10,11 +10,12 @@
  * in blockchain/), backend running (npm start), an ADMIN created with
  * scripts/create-admin.js using ADMIN_EMAIL / ADMIN_PASSWORD below.
  *
- *   ADMIN_EMAIL=admin@laa.test ADMIN_PASSWORD=... node scripts/e2e-full-stack.js
+ *   npm run e2e -- --email admin@laa.test --password "..."   (or ADMIN_EMAIL / ADMIN_PASSWORD)
  */
 const fs = require('fs');
 const path = require('path');
 const { ethers } = require('ethers');
+const { arg } = require('./args');
 
 const API = process.env.API_BASE || 'http://localhost:5000';
 const RPC = process.env.RPC_URL || 'http://127.0.0.1:8545';
@@ -101,7 +102,7 @@ async function main() {
     const pin = `E2E-${tag}-001`;
 
     // ---- accounts -------------------------------------------------------
-    const admin = (await api('POST', '/api/auth/login', { body: { email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD } })).data;
+    const admin = (await api('POST', '/api/auth/login', { body: { email: arg('email', 'ADMIN_EMAIL'), password: arg('password', 'ADMIN_PASSWORD') } })).data;
     check('admin can log in', admin && admin.token);
 
     let registrar = await signup('Synthetic Registrar', `registrar-${tag}@example.test`);

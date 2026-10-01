@@ -23,13 +23,11 @@ function notFoundHandler(req, res, _next) {
 function errorHandler(err, req, res, _next) {
     const status = err.status || 500;
 
-    /* eslint-disable no-console */
     if (status >= 500) {
         console.error('[' + status + '] ' + req.method + ' ' + req.originalUrl, err);
     } else {
         console.warn('[' + status + '] ' + req.method + ' ' + req.originalUrl + ' - ' + (err.message || 'client error'));
     }
-    /* eslint-enable no-console */
 
     const payload = { error: err.message || 'Internal Server Error' };
     if (err.details) payload.details = err.details;

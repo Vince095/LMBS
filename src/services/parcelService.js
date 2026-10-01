@@ -1,6 +1,6 @@
 /**
  * Parcel REST service — list, provenance, documents, GIS history, and the
- * legacy /api/titles upsert endpoint used by the Registration wizard.
+ * /api/titles endpoint that records metadata for an on-chain registration.
  */
 
 import { http } from './httpClient';

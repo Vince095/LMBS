@@ -30,7 +30,7 @@ parameters and no PREPARE, COMMIT or FINALIZED functions.
 * The backend refuses to start without strong `JWT_SECRET`, `ENCRYPTION_KEY` and
   `PSEUDONYM_SALT` (tested in `01.config.test.js`). `npm run gen:secrets` creates them locally.
 * Besu node keys and development accounts are generated per machine by
-  `network/scripts/setup.sh` and are never committed.
+  `npm run network:setup` and are never committed.
 
 **Action still required by the student (cannot be done from code):** the *submitted archive* the
 supervisor reviewed contained real deployment and database credentials, encryption material and
@@ -41,7 +41,7 @@ validator or network keys. Each of them must be **revoked and rotated**:
 2. Any RPC, API or hosting tokens found in the old archive: revoke them and issue new ones.
 3. The old `ENCRYPTION_KEY` and JWT secret: discard them. Data encrypted with the old key
    (mnemonics) must be **deleted**, not migrated.
-4. Old validator and node keys: discard them. `setup.sh` generates a fresh network.
+4. Old validator and node keys: discard them. `npm run network:setup` generates a fresh network.
 5. If the old archive was pushed to any remote, rewrite that history (`git filter-repo`) or
    delete the repository, then submit a clean archive made with `git archive` (see TRACEABILITY
    P2).

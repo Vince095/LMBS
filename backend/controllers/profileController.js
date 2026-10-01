@@ -1,8 +1,6 @@
 /**
- * Profile controller — reads and self-service updates of OFF-CHAIN user profiles.
- *
- * Also provides self-service profile update (PUT /api/profiles/me) for
- * authenticated users who want to edit their own profile.
+ * Profile controller — reads and self-service updates (PUT /api/profiles/me)
+ * of OFF-CHAIN user profiles. Personal data never goes on-chain.
  */
 
 const { User } = require('../models');

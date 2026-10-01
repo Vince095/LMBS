@@ -1,12 +1,14 @@
-# Four-validator Hyperledger Besu QBFT network (Docker alternative to scripts/start.sh).
+# Four-validator Hyperledger Besu QBFT network, Docker alternative to `npm run network:start`.
+# Useful on Windows/macOS when you prefer Docker Desktop to installing Java + Besu.
 #
-#   MODE=docker scripts/setup.sh     # generates keys, genesis, allowlists with the IPs below
+#   npm run network:setup:docker     (repository root: keys, genesis and allowlists for the IPs below)
+#   cd network
 #   docker compose up -d
-#   scripts/fault-tolerance.sh       # works the same (uses host ports 8545-8548)
-#   docker compose stop node4        # manual fault injection
+#   npm run network:status           (repository root; RPC on host ports 8545-8548)
+#   npm run network:fault-test       (stops/starts containers through docker compose)
+#   docker compose down              (stop everything)
 #
-# NOTE: tested configuration is the native one (scripts/start.sh). This file
-# mirrors the same flags for machines where installing Besu is inconvenient.
+# NOTE: the recorded test runs used the native Besu processes. This file mirrors the same flags.
 x-besu: &besu
   image: hyperledger/besu:25.9.0
   user: root

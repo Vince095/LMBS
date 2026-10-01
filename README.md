@@ -23,27 +23,38 @@ its fix and evidence is in [docs/TRACEABILITY.md](docs/TRACEABILITY.md).
 
 Full description: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Getting started
+
+* **Windows:** [docs/GETTING_STARTED_WINDOWS.md](docs/GETTING_STARTED_WINDOWS.md), a step-by-step guide for new users
+* **macOS / Linux:** [docs/GETTING_STARTED_MACOS.md](docs/GETTING_STARTED_MACOS.md)
+* Commands, roles and evaluation runs: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
+
+Requirements: Node.js 22, Java 21 + Hyperledger Besu 25.9.0 (or Docker Desktop), MongoDB 7+, and
+MetaMask. Once they are installed, the same commands work on every platform:
+
+```
+cd blockchain && npm ci && npm test && cd ..
+cd backend && npm ci && npm test && cd ..
+npm ci
+npm run network:setup
+npm run network:start
+cd blockchain && npm run deploy:besu && npm run demo:besu && cd ..
+cd backend && npm run gen:secrets && npm run create-admin -- --email admin@laa.test --password "choose-a-long-passphrase" && npm start
+npm start
+```
+
+(The last two commands run in separate terminals.)
+
 ## Repository layout
 
 ```
 blockchain/   Solidity contracts, Hardhat tests (154), deploy/demo/reliability/benchmark scripts
-network/      Besu QBFT 4-validator scaffold: key/genesis generation, start/stop, fault-tolerance demo
+network/      lmbs-network.js (cross-platform Besu network tool), genesis template, docker-compose.yml
 backend/      Express API: auth + RBAC, wallet linking, encrypted documents, chain indexer; Jest tests (122)
-src/          React portal (GovTech UI) with wallet-based on-chain actions
-docs/         Architecture, demo guide, testing & evaluation, security evidence, traceability, limitations
-```
-
-## Quick start
-
-The exact commands, versions and the scripted demonstration are in
-**[docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md)**. In short:
-
-```bash
-(cd blockchain && npm ci && npm test)                  # 154 contract tests
-network/scripts/setup.sh && network/scripts/start.sh   # 4 Besu validators
-(cd blockchain && npm run deploy:besu && npm run demo:besu)
-(cd backend && npm ci && npm run gen:secrets && npm test && npm start)
-npm ci && npm start                                     # portal on http://localhost:3000
+src/          React portal with wallet-signed on-chain actions
+e2e/          Playwright browser test of the portal
+scripts/      make-clean-archive.js (submission zip)
+docs/         Install guides, user guide, architecture, testing, security evidence, traceability, limitations
 ```
 
 ## Test results (last full run, 24 Sep 2026)

@@ -7,6 +7,7 @@
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const env = require('../config/env');
 const ctl = require('../controllers/authController');
 const { authMiddleware } = require('../middleware/auth');
 
@@ -14,7 +15,7 @@ const router = express.Router();
 
 const credentialLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    limit: Number(process.env.AUTH_RATE_LIMIT || 20),
+    limit: env.authRateLimit,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: { error: 'Too many attempts, try again later' },

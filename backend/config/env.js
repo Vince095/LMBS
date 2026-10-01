@@ -53,6 +53,8 @@ const env = {
     emailProvider: process.env.EMAIL_PROVIDER || 'stub',
 
     auditEnabled: (process.env.AUDIT_ENABLED || 'true') === 'true',
+    // Login/registration attempts per IP per 15 minutes (raise only for automated test runs).
+    authRateLimit: num(process.env.AUTH_RATE_LIMIT, 20),
 };
 
 const PLACEHOLDER = /change|example|default|placeholder|secret|password|generate/i;

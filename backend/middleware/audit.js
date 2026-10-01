@@ -73,9 +73,7 @@ function auditMiddleware() {
             };
 
             AuditLog.create(entry).catch((err) => {
-                /* eslint-disable no-console */
                 console.error('[audit] failed to persist entry:', err.message);
-                /* eslint-enable no-console */
             });
         });
 

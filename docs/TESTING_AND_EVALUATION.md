@@ -32,7 +32,7 @@ Timings depend on hardware.
 | Role enforcement | 8 actors × 13 restricted actions | `test/06.RoleEnforcement.test.js` (104 cases + shared-authority + admin-transfer tests); backend `03.authorization.test.js` | PASS |
 | Dispute and encumbrance | Transfer attempted with an open dispute, mortgage, lien or caveat; servitude; a caveat lodged after approval | `test/07.DisputeEncumbrance.test.js`: blocked until resolved or discharged, deferred execution, `execute()` after discharge | PASS |
 | Document integrity | Change one byte of an encrypted off-chain document | backend `05.documents.test.js`; E2E check "one modified byte … detected" | PASS (GCM authentication failure + hash mismatch) |
-| Fault tolerance | Stop one validator of four | `network/scripts/fault-tolerance.sh`; full demo with node4 stopped | PASS (see section 4) |
+| Fault tolerance | Stop one validator of four | `npm run network:fault-test`; full demo with node4 stopped | PASS (see section 4) |
 | Reliability | Each core operation 50 times | `npm run reliability:besu` | **200/200 (100%)**, 0 failures |
 | Performance | Registration and transfer workloads | `npm run benchmark:besu` | see section 3 |
 

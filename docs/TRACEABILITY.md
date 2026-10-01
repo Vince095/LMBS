@@ -10,7 +10,7 @@ This table follows the supervisor's comments on the revised prototype (Dr C. Kom
 | P0-2 | ERC-721 hook calls `ownerOf` before mint and blocks the governed transfer | `_update` has no `ownerOf` call. It permits a state change only while `_execute` runs (`_executing` flag), and otherwise reverts `DirectTransferDisabled`. `approve` and `setApprovalForAll` are disabled. | `04.DirectTransferBypass.test.js` (3 tests, including "does not block the authorised internal transfer") |
 | P0-3 | Approval workflow stalls; in-contract QBFT phases | The QBFT phase simulation is removed from the contract and frontend (`qbftConsensus.js` deleted). There is one M-of-N threshold, and execution is automatic when it is reached. `ApprovalsQueue` lists every PENDING request and every APPROVED-but-blocked request, with approval progress. | `05.ApprovalIntegrity.test.js`; `src/govtech/pages/ApprovalsQueue.js`; `src/chain/abi.test.js` |
 | P0-4 | Mnemonic phrases collected, stored and recoverable | Feature deleted end-to-end (UI, localStorage, backend route, controller, model, CBC key). Approvals are wallet transactions or EIP-712 signatures checked on-chain. | `SECURITY_EVIDENCE.md` §1; `08.securityEvidence.test.js`; `/api/signatures/*` returns 404 |
-| P0-5 | Secrets and private keys in the archive | No secrets in this repository or its history. Secrets are generated locally (`gen:secrets`, `setup.sh`), the server refuses to start with missing or placeholder secrets, and `.gitignore` is hardened. **Rotation of the credentials exposed in the old archive must be done by the student** (checklist in SECURITY_EVIDENCE §2). | `01.config.test.js`; `08.securityEvidence.test.js` |
+| P0-5 | Secrets and private keys in the archive | No secrets in this repository or its history. Secrets are generated locally (`gen:secrets`, `network:setup`), the server refuses to start with missing or placeholder secrets, and `.gitignore` is hardened. **Rotation of the credentials exposed in the old archive must be done by the student** (checklist in SECURITY_EVIDENCE §2). | `01.config.test.js`; `08.securityEvidence.test.js` |
 | P0 (plan) | Remove raw personal data from contract state | `UserProfile` replaced by `IdentityRegistry` (pseudonymous, hashes only). | `08.IdentityPrivacy.test.js` |
 | P0 (plan) | Require backend authentication and RBAC | Global auth guard; RBAC always enforced (see P1-3). | `02`, `03` backend tests |
 | P0 (plan) | Real Hardhat tests | 154 contract tests replace the default `Lock` test. | `blockchain/test/*` |
@@ -25,7 +25,7 @@ This table follows the supervisor's comments on the revised prototype (Dr C. Kom
 | P1-4 | Dispute and encumbrance modules do not govern transfers | `LandRegistry` checks `DisputeRegistry` and `EncumbranceRegistry` at submission **and** execution. APPROVED requests with a blocker defer, and `execute()` runs once the blocker is cleared. | `07.DisputeEncumbrance.test.js` (9) |
 | P1-5 | Fragmented role management | One `RoleAuthority` (AccessControl with a delayed two-step admin), shared by every contract. Institutional role map in `Roles.sol`. | `06.RoleEnforcement.test.js` ("one role authority shared", "revoking … removes the permission everywhere", admin transfer) |
 | P1-6 | Inconsistent architecture (Besu / Fabric / Quorum / Ganache / IPFS) | Single Besu QBFT network with 4 validators, a working scaffold, permissioning and a fault-tolerance script. No other frameworks remain. | `ARCHITECTURE.md`; `network/`; fault-tolerance log |
-| P1-7 | Tests and reproducibility missing | Hardhat (154), backend (122), frontend (3), full-stack E2E (23), browser E2E (6), reliability, benchmark, and a clean setup guide. | `TESTING_AND_EVALUATION.md`; `DEMO_GUIDE.md` |
+| P1-7 | Tests and reproducibility missing | Hardhat (154), backend (122), frontend (3), full-stack E2E (23), browser E2E (6), reliability, benchmark, and a clean setup guide. | `TESTING_AND_EVALUATION.md`; `GETTING_STARTED_WINDOWS.md`; `USER_GUIDE.md` |
 | P1 (plan) | Real encrypted document storage | AES-256-GCM document store. Only the keccak256 hash goes on-chain. Tampering is detected. | `05.documents.test.js`; E2E checks 20–21 |
 
 ## P2: before dissertation submission
@@ -41,10 +41,10 @@ This table follows the supervisor's comments on the revised prototype (Dr C. Kom
 
 | # | Deliverable | Where |
 |---|---|---|
-| 1 | Clean source archive | `npm run archive` (scripts/make-clean-archive.sh) |
+| 1 | Clean source archive | `npm run archive` (scripts/make-clean-archive.js) |
 | 2 | Single architecture statement | `README.md` (table) and `docs/ARCHITECTURE.md` |
 | 3 | Working vertical slice | `npm run demo:besu`; `evidence/…/demo-vertical-slice-besu.json` |
 | 4 | Automated tests with commands, counts, results | `docs/TESTING_AND_EVALUATION.md` §1 |
 | 5 | Security evidence | `docs/SECURITY_EVIDENCE.md` |
-| 6 | Four-validator demonstration | `network/`; `scripts/fault-tolerance.sh`; `evidence/…/fault-tolerance.txt` |
-| 7 | Demonstration guide | `docs/DEMO_GUIDE.md` |
+| 6 | Four-validator demonstration | `network/`; `npm run network:fault-test`; `evidence/…/fault-tolerance.txt` |
+| 7 | Demonstration guide | `docs/GETTING_STARTED_WINDOWS.md`, `docs/GETTING_STARTED_MACOS.md`, `docs/USER_GUIDE.md` |

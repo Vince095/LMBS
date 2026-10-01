@@ -251,7 +251,6 @@ function start(models) {
         if (running) return;
         running = true;
         try { await syncOnce(models); } catch (err) {
-            // eslint-disable-next-line no-console
             console.warn('[indexer]', err.message);
         } finally { running = false; }
     };

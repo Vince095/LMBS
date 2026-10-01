@@ -16,11 +16,11 @@ This document describes what is **implemented** in this repository. Planned work
   | node4 | Ministry of Local Government |
 
 * QBFT tolerates `f = floor((N-1)/3) = 1` faulty validator when N = 4. The quorum is 3.
-  This is demonstrated by `network/scripts/fault-tolerance.sh`.
+  This is demonstrated by `npm run network:fault-test` (`network/lmbs-network.js`).
 * **Permissioning**: a node allowlist (only the four validators may peer) and an account
   allowlist (only enrolled institutional and citizen accounts may send transactions), in
   `network/generated/permissions_config.toml`.
-* Keys are generated **on each machine** by `network/scripts/setup.sh`. None are committed.
+* Keys are generated **on each machine** by `npm run network:setup`. None are committed.
 
 ## 2. Separate mechanisms
 
