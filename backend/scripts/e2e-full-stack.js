@@ -104,6 +104,12 @@ async function main() {
     // ---- accounts -------------------------------------------------------
     const admin = (await api('POST', '/api/auth/login', { body: { email: arg('email', 'ADMIN_EMAIL'), password: arg('password', 'ADMIN_PASSWORD') } })).data;
     check('admin can log in', admin && admin.token);
+    if (!admin || !admin.token) {
+        console.error('\nCannot continue without the admin login. Use the email/password given to create-admin,\n' +
+            'or reset it: npm run create-admin -- --email admin@laa.test --password "a-long-passphrase"');
+        process.exitCode = 1;
+        return;
+    }
 
     let registrar = await signup('Synthetic Registrar', `registrar-${tag}@example.test`);
     let issuer = await signup('Synthetic KYC Officer', `issuer-${tag}@example.test`);
