@@ -64,6 +64,3 @@ backend/coverage/
 # ── Archives ─────────────────────────────────────────────────────────────────
 *.zip
 e2e/node_modules
-
-# ── Claude working outputs (local only) ───────────────────────────────────────
-Claude outputs/
