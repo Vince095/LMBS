@@ -15,6 +15,8 @@ export const STATUS = ['NONE', 'PENDING', 'APPROVED', 'EXECUTED', 'REJECTED', 'C
 export const BLOCKER = ['NONE', 'OPEN_DISPUTE', 'BLOCKING_ENCUMBRANCE', 'PARTY_NOT_VERIFIED', 'OWNER_CHANGED'];
 export const ENC_KIND = ['MORTGAGE', 'LIEN', 'CAVEAT', 'SERVITUDE'];
 export const RPC_URL = process.env.REACT_APP_CHAIN_RPC_URL || 'http://127.0.0.1:8545';
+// Besu's default --rpc-max-logs-range is 5000 blocks; stay under it.
+const LOG_CHUNK_BLOCKS = 4000;
 
 let cachedConfig = null;
 
@@ -132,7 +134,13 @@ export async function listRequests(cfg, { viewer } = {}) {
 /** Titles currently held by `owner` (from ERC-721 Transfer events, confirmed with ownerOf). */
 export async function titlesOf(cfg, owner) {
     const { registry } = contracts(cfg);
-    const logs = await registry.queryFilter(registry.filters.Transfer(null, owner), cfg.startBlock || 0);
+    // Query in chunks: Besu (and most RPCs) cap eth_getLogs at a maximum block range.
+    const filter = registry.filters.Transfer(null, owner);
+    const head = await registry.runner.provider.getBlockNumber();
+    const logs = [];
+    for (let from = Number(cfg.startBlock || 0); from <= head; from += LOG_CHUNK_BLOCKS) {
+        logs.push(...await registry.queryFilter(filter, from, Math.min(head, from + LOG_CHUNK_BLOCKS - 1)));
+    }
     const ids = [...new Set(logs.map((l) => l.args.tokenId.toString()))];
     const held = [];
     for (const id of ids) {

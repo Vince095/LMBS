@@ -18,7 +18,6 @@ const RESTRICTED = [
     ['get', '/api/admin/stats', 'ADMIN'],
     ['get', '/api/admin/users', 'ADMIN'],
     ['put', '/api/admin/users/64b000000000000000000001', 'ADMIN'],
-    ['post', '/api/parcels/13283-001/documents', 'REGISTRY_OFFICER, SURVEYOR, NOTARY'],
     ['get', '/api/search/advanced', 'REGISTRY_OFFICER, AUDITOR, NOTARY, SURVEYOR'],
     ['post', '/api/encumbrances', 'FINANCIAL_INST, REGISTRY_OFFICER'],
     ['post', '/api/disputes/DSP-1/resolve', 'REGISTRY_OFFICER'],
@@ -37,6 +36,13 @@ describe('RBAC is enforced (no permissive mode)', () => {
         for (const [m, p] of [['get', '/api/admin/users'], ['post', '/api/titles/import'], ['post', '/api/notifications']]) {
             expect((await request(app)[m](p).set(auditor).send({})).status).toBe(403);
         }
+    });
+});
+
+describe('Documents enter only through the encrypted store', () => {
+    test('the old metadata-only upload route (IPFS placeholder) is gone', async () => {
+        const res = await request(app).post('/api/parcels/13283-001/documents').set(bearer({ role: 'REGISTRY_OFFICER' })).send({ name: 'x.pdf' });
+        expect(res.status).toBe(404);
     });
 });
 

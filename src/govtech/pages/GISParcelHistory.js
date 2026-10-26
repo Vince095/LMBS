@@ -30,17 +30,21 @@ import GoogleMap           from '../components/GoogleMap';
 const TABS = ['Explorer', 'Ledger Audit', 'Survey Data', 'System Config'];
 
 const EVENT_COLOR = {
-    PARCEL_REGISTERED:  '#0F172A',
-    BOUNDARY_UPDATED:   '#059669',
-    TITLE_ISSUED:       '#0284C7',
-    TITLE_AMENDED:      '#F59E0B',
-    TITLE_REVOKED:      '#DC2626',
-    TRANSFER_INITIATED: '#7C3AED',
-    TRANSFER_APPROVED:  '#0284C7',
-    TRANSFER_COMPLETED: '#059669',
-    TRANSFER_CANCELLED: '#475569',
-    DOCUMENT_ATTACHED:  '#0369A1',
-    AUDIT_EVENT:        '#475569',
+    REGISTRATION_SUBMITTED: '#0F172A',
+    TRANSFER_INITIATED:     '#7C3AED',
+    APPROVAL_RECORDED:      '#0284C7',
+    REJECTION_RECORDED:     '#DC2626',
+    TRANSFER_APPROVED:      '#0284C7',
+    EXECUTION_DEFERRED:     '#B45309',
+    TITLE_ISSUED:           '#0284C7',
+    TRANSFER_COMPLETED:     '#059669',
+    REQUEST_REJECTED:       '#DC2626',
+    TRANSFER_CANCELLED:     '#475569',
+    DISPUTE_OPENED:         '#B91C1C',
+    DISPUTE_CLOSED:         '#475569',
+    ENCUMBRANCE_REGISTERED: '#B45309',
+    ENCUMBRANCE_DISCHARGED: '#059669',
+    DOCUMENT_ATTACHED:      '#0369A1',
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
