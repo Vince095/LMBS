@@ -46,6 +46,41 @@ describe('Documents enter only through the encrypted store', () => {
     });
 });
 
+describe('Attaching a document to a parcel record', () => {
+    const models = require('../models');
+    const { mayAttach } = require('../controllers/documentController');
+    const HOLDER = '0x00000000000000000000000000000000000000a1';
+    const lean = (v) => ({ select() { return this; }, sort() { return this; }, lean: async () => v });
+
+    afterEach(() => jest.restoreAllMocks());
+    function titled(status = 'ACTIVE') {
+        jest.spyOn(models.Parcel, 'findOne').mockReturnValue(lean({ pin: 'MSU-1', status, parcelKey: '0xkey' }));
+        jest.spyOn(models.ChainRequest, 'findOne').mockReturnValue(lean({ requestId: 4, status: 'EXECUTED', to: HOLDER }));
+    }
+
+    test('a citizen cannot attach to a parcel whose title someone else holds', async () => {
+        titled();
+        const res = await request(app).post('/api/documents').set(bearer(CITIZEN))
+            .send({ contentBase64: Buffer.from('fake deed').toString('base64'), name: 'deed.pdf', type: 'TITLE_DEED', parcelPin: 'MSU-1' });
+        expect(res.status).toBe(403);
+    });
+
+    test('officers may attach to any parcel; the holder may attach to their own title', async () => {
+        titled();
+        for (const role of ['REGISTRY_OFFICER', 'SURVEYOR', 'NOTARY']) expect(await mayAttach({ role }, 'MSU-1')).toBe(true);
+        expect(await mayAttach({ role: 'CITIZEN', address: HOLDER }, 'MSU-1')).toBe(true);
+        expect(await mayAttach({ role: 'CITIZEN', address: CITIZEN.address }, 'MSU-1')).toBe(false);
+        expect(await mayAttach({ role: 'CITIZEN' }, 'MSU-1')).toBe(false);
+    });
+
+    test('an applicant may attach to a parcel with no issued title (their own registration)', async () => {
+        jest.spyOn(models.Parcel, 'findOne').mockReturnValue(lean(null));
+        expect(await mayAttach({ role: 'CITIZEN', address: CITIZEN.address }, 'NEW-1')).toBe(true);
+        titled('DRAFT');
+        expect(await mayAttach({ role: 'CITIZEN', address: CITIZEN.address }, 'MSU-1')).toBe(true);
+    });
+});
+
 describe('On-chain actions require a verified wallet', () => {
     test.each([
         ['post', '/api/titles'],

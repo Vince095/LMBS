@@ -17,6 +17,7 @@ export const ENC_KIND = ['MORTGAGE', 'LIEN', 'CAVEAT', 'SERVITUDE'];
 export const RPC_URL = process.env.REACT_APP_CHAIN_RPC_URL || 'http://127.0.0.1:8545';
 // Besu's default --rpc-max-logs-range is 5000 blocks; stay under it.
 const LOG_CHUNK_BLOCKS = 4000;
+const LOG_CHUNK_CONCURRENCY = 6;
 
 let cachedConfig = null;
 
@@ -137,26 +138,29 @@ export async function titlesOf(cfg, owner) {
     // Query in chunks: Besu (and most RPCs) cap eth_getLogs at a maximum block range.
     const filter = registry.filters.Transfer(null, owner);
     const head = await registry.runner.provider.getBlockNumber();
-    const logs = [];
+    const ranges = [];
     for (let from = Number(cfg.startBlock || 0); from <= head; from += LOG_CHUNK_BLOCKS) {
-        logs.push(...await registry.queryFilter(filter, from, Math.min(head, from + LOG_CHUNK_BLOCKS - 1)));
+        ranges.push([from, Math.min(head, from + LOG_CHUNK_BLOCKS - 1)]);
+    }
+    // A few chunks in flight at once: fast on a long chain without flooding the RPC node.
+    const logs = [];
+    for (let i = 0; i < ranges.length; i += LOG_CHUNK_CONCURRENCY) {
+        const batch = await Promise.all(ranges.slice(i, i + LOG_CHUNK_CONCURRENCY).map(([a, b]) => registry.queryFilter(filter, a, b)));
+        batch.forEach((l) => logs.push(...l));
     }
     const ids = [...new Set(logs.map((l) => l.args.tokenId.toString()))];
-    const held = [];
-    for (const id of ids) {
+    const held = await Promise.all(ids.map(async (id) => {
         const current = (await registry.ownerOf(id)).toLowerCase();
-        if (current === owner.toLowerCase()) {
-            const key = '0x' + BigInt(id).toString(16).padStart(64, '0');
-            held.push({
-                tokenId: id,
-                parcelKey: key,
-                parcelNumber: await registry.canonicalParcelNumber(key),
-                documentHash: await registry.titleDocumentHash(id),
-                pendingTransfer: Number(await registry.activeTransferRequest(id)),
-            });
-        }
-    }
-    return held;
+        if (current !== owner.toLowerCase()) return null;
+        const key = '0x' + BigInt(id).toString(16).padStart(64, '0');
+        const [parcelNumber, documentHash, pending] = await Promise.all([
+            registry.canonicalParcelNumber(key),
+            registry.titleDocumentHash(id),
+            registry.activeTransferRequest(id),
+        ]);
+        return { tokenId: id, parcelKey: key, parcelNumber, documentHash, pendingTransfer: Number(pending) };
+    }));
+    return held.filter(Boolean);
 }
 
 /** Sends a transaction and waits until it is in a finalised QBFT block. */

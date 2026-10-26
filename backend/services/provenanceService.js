@@ -14,8 +14,9 @@
  *   documents       ← encrypted document store (keccak256 hash anchored
  *                     on-chain through submitRegistration / submitTransfer)
  *
- * Event timestamps are taken from the block in which the event was mined when
- * the chain is reachable; otherwise the read model's own timestamps are used.
+ * Event timestamps are the mined block's time, stored by the indexer. For rows
+ * indexed before it stored them, the block is looked up (bounded by a short
+ * timeout); failing that the read model's own timestamps are used.
  * Nothing here invents a transaction hash: `txId` is a real Besu transaction
  * hash or null.
  */
@@ -30,7 +31,7 @@ const EVENT_META = {
     APPROVAL_RECORDED:      { label: 'Approval Recorded',      color: '#0284C7', icon: 'how_to_vote' },
     REJECTION_RECORDED:     { label: 'Rejection Recorded',     color: '#DC2626', icon: 'thumb_down' },
     TRANSFER_APPROVED:      { label: 'Request Approved',       color: '#0284C7', icon: 'verified' },
-    EXECUTION_DEFERRED:     { label: 'Execution Blocked',      color: '#F59E0B', icon: 'block' },
+    EXECUTION_DEFERRED:     { label: 'Execution Blocked',      color: '#B45309', icon: 'block' },
     TITLE_ISSUED:           { label: 'Title Issued',           color: '#0284C7', icon: 'workspace_premium' },
     TRANSFER_COMPLETED:     { label: 'Title Transfer',         color: '#059669', icon: 'check_circle' },
     REQUEST_REJECTED:       { label: 'Request Rejected',       color: '#DC2626', icon: 'cancel' },
@@ -89,21 +90,45 @@ function makeEvent(type, fields) {
     };
 }
 
-// ─── Block timestamps (real chain time when reachable) ──────────────────────
+// ─── Block timestamps for rows indexed without one ──────────────────────────
+const BLOCK_TIME_TIMEOUT_MS = 3000;
+
 async function blockTimes(blockNumbers, deps) {
     const out = new Map();
     const c = deps.chain;
     if (!c || !c.isConfigured || !c.isConfigured()) return out;
     const unique = [...new Set(blockNumbers.filter((n) => Number.isInteger(n)))].slice(0, 100);
     if (!unique.length) return out;
+    let timer;
     try {
         const provider = c.getProvider();
-        const blocks = await Promise.all(unique.map((n) => provider.getBlock(n).catch(() => null)));
-        blocks.forEach((b, i) => { if (b && b.timestamp) out.set(unique[i], new Date(Number(b.timestamp) * 1000)); });
+        const lookups = Promise.all(unique.map((n) => provider.getBlock(n).catch(() => null)));
+        const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(null), BLOCK_TIME_TIMEOUT_MS); });
+        const blocks = await Promise.race([lookups, timeout]);
+        (blocks || []).forEach((b, i) => { if (b && b.timestamp) out.set(unique[i], new Date(Number(b.timestamp) * 1000)); });
     } catch {
         /* chain unreachable: fall back to read-model timestamps */
+    } finally {
+        clearTimeout(timer);
     }
     return out;
+}
+
+// ─── On-chain anchoring of stored documents ─────────────────────────────────
+/**
+ * Map documentHash → requestId for every hash committed on-chain, either
+ * directly as a request's documentHash or as a member of an anchored manifest.
+ * `manifests` are stored documents carrying `members`.
+ */
+function anchorIndex(requests, manifests) {
+    const byHash = new Map();
+    requests.forEach((r) => { if (r.documentHash) byHash.set(String(r.documentHash).toLowerCase(), r.requestId); });
+    manifests.forEach((mf) => {
+        const rid = byHash.get(String(mf.documentHash || '').toLowerCase());
+        if (rid === undefined) return;
+        (mf.members || []).forEach((h) => { if (!byHash.has(h)) byHash.set(String(h).toLowerCase(), rid); });
+    });
+    return byHash;
 }
 
 // ─── Name resolution for wallet addresses ───────────────────────────────────
@@ -119,8 +144,10 @@ async function nameMap(addresses, m) {
 // ─── history ────────────────────────────────────────────────────────────────
 async function history(pin, { limit = 50 } = {}, deps = { models, chain }) {
     const m = deps.models;
-    const parcel = await m.Parcel.findOne({ pin }).lean();
-    const deed = await m.TitleDeed.findOne({ parcelPin: pin }).sort({ createdAt: -1 }).lean();
+    const [parcel, deed] = await Promise.all([
+        m.Parcel.findOne({ pin }).lean(),
+        m.TitleDeed.findOne({ parcelPin: pin }).sort({ createdAt: -1 }).lean(),
+    ]);
 
     // Draft parcels have not been submitted on-chain.
     if (!parcel || parcel.status === 'DRAFT') {
@@ -140,16 +167,21 @@ async function history(pin, { limit = 50 } = {}, deps = { models, chain }) {
         m.StoredDocument.find({ parcelPin: pin }).lean(),
     ]);
 
+    // Only blocks whose time the indexer did not store need a chain lookup.
     const blocks = [];
     requests.forEach((r) => {
-        blocks.push(r.submittedBlock, r.executedBlock);
-        (r.decisions || []).forEach((d) => blocks.push(d.blockNumber));
+        if (!r.submittedAt) blocks.push(r.submittedBlock);
+        if (!r.executedAt) blocks.push(r.executedBlock);
+        (r.decisions || []).forEach((d) => { if (!d.at) blocks.push(d.blockNumber); });
     });
-    const [times, names] = await Promise.all([
-        blockTimes(blocks, deps),
-        nameMap(requests.flatMap((r) => [r.submitter, r.from, r.to, ...(r.decisions || []).map((d) => d.approver)]), m),
-    ]);
-    const at = (block, fallback) => times.get(block) || fallback || null;
+    const addresses = [
+        ...requests.flatMap((r) => [r.submitter, r.from, r.to, ...(r.decisions || []).map((d) => d.approver)]),
+        ...disputes.map((d) => d.filerAddress),
+        ...encumbrances.map((e) => e.dischargedBy),
+        ...docs.map((d) => d.uploadedBy && d.uploadedBy.address),
+    ];
+    const [times, names] = await Promise.all([blockTimes(blocks, deps), nameMap(addresses, m)]);
+    const at = (block, stored, fallback) => stored || times.get(block) || fallback || null;
     const who = (addr) => (addr && names.get(addr.toLowerCase())) || shortAddr(addr) || 'Unknown';
 
     const events = [];
@@ -161,7 +193,7 @@ async function history(pin, { limit = 50 } = {}, deps = { models, chain }) {
 
         events.push(makeEvent(isReg ? 'REGISTRATION_SUBMITTED' : 'TRANSFER_INITIATED', {
             id: `req:${rid}:submitted`,
-            date: at(r.submittedBlock, r.createdAt),
+            date: at(r.submittedBlock, r.submittedAt, r.createdAt),
             principal: who(r.submitter),
             principalSub: isReg ? `${sub} · for ${who(r.to)}` : `${sub} · ${who(r.from)} → ${who(r.to)}`,
             txId: r.submittedTx || null,
@@ -175,7 +207,7 @@ async function history(pin, { limit = 50 } = {}, deps = { models, chain }) {
             const approve = d.decision === 'APPROVE';
             events.push(makeEvent(approve ? 'APPROVAL_RECORDED' : 'REJECTION_RECORDED', {
                 id: `req:${rid}:decision:${i}`,
-                date: at(d.blockNumber, r.updatedAt),
+                date: at(d.blockNumber, d.at, r.updatedAt),
                 principal: who(d.approver),
                 principalSub: `${sub}${d.viaSignature ? ' · EIP-712 signed vote (relayed)' : ''}`,
                 txId: d.txHash || null,
@@ -211,7 +243,7 @@ async function history(pin, { limit = 50 } = {}, deps = { models, chain }) {
         if (r.status === 'EXECUTED') {
             events.push(makeEvent(isReg ? 'TITLE_ISSUED' : 'TRANSFER_COMPLETED', {
                 id: `req:${rid}:executed`,
-                date: at(r.executedBlock, r.updatedAt),
+                date: at(r.executedBlock, r.executedAt, r.updatedAt),
                 principal: who(r.to),
                 principalSub: isReg
                     ? `${sub} · ERC-721 title #${r.tokenId}${deed && deed.deedNumber ? ` · Deed ${deed.deedNumber}` : ''}`
@@ -238,7 +270,7 @@ async function history(pin, { limit = 50 } = {}, deps = { models, chain }) {
         events.push(makeEvent('DISPUTE_OPENED', {
             id: `dispute:${d.disputeId}:opened`,
             date: d.createdAt,
-            principal: d.filerAddress ? shortAddr(d.filerAddress) : 'Dispute officer',
+            principal: d.filerAddress ? who(d.filerAddress) : 'Dispute officer',
             principalSub: `Dispute ${d.disputeId}`,
             txId: d.blockchainTxId || null,
             status: d.blockchainTxId ? 'verified' : 'pending',
@@ -269,7 +301,7 @@ async function history(pin, { limit = 50 } = {}, deps = { models, chain }) {
             events.push(makeEvent('ENCUMBRANCE_DISCHARGED', {
                 id: `enc:${e.encumbranceId}:discharged`,
                 date: e.dischargeDate,
-                principal: e.dischargedBy ? shortAddr(e.dischargedBy) : 'Encumbrance officer',
+                principal: e.dischargedBy ? who(e.dischargedBy) : 'Encumbrance officer',
                 principalSub: `${e.type} · ${e.encumbranceId}`,
                 txId: null,
                 status: 'verified',
@@ -277,13 +309,13 @@ async function history(pin, { limit = 50 } = {}, deps = { models, chain }) {
         }
     });
 
-    const anchored = new Set(requests.map((r) => (r.documentHash || '').toLowerCase()).filter(Boolean));
+    const anchored = anchorIndex(requests, docs.filter((d) => d.members && d.members.length));
     docs.forEach((d) => {
         const onChain = anchored.has((d.documentHash || '').toLowerCase());
         events.push(makeEvent('DOCUMENT_ATTACHED', {
             id: `doc:${d.docId}`,
             date: d.createdAt,
-            principal: (d.uploadedBy && (d.uploadedBy.address ? shortAddr(d.uploadedBy.address) : d.uploadedBy.role)) || 'Uploader',
+            principal: (d.uploadedBy && (d.uploadedBy.address ? who(d.uploadedBy.address) : d.uploadedBy.role)) || 'Uploader',
             principalSub: docLabel(d.type) + (d.name ? ` — ${d.name}` : ''),
             txId: null,
             hash: shortHash(d.documentHash),
@@ -298,10 +330,13 @@ async function history(pin, { limit = 50 } = {}, deps = { models, chain }) {
 
 // ─── documents ──────────────────────────────────────────────────────────────
 async function anchoredHashes(hashes, m) {
-    const list = [...new Set(hashes.filter(Boolean))];
+    const list = [...new Set(hashes.filter(Boolean).map((h) => String(h).toLowerCase()))];
     if (!list.length) return new Map();
-    const reqs = await m.ChainRequest.find({ documentHash: { $in: list } }).select('documentHash requestId').lean();
-    return new Map(reqs.map((r) => [String(r.documentHash).toLowerCase(), r.requestId]));
+    // Manifests that list any of these documents; their own hash is what a request anchors.
+    const manifests = await m.StoredDocument.find({ members: { $in: list } }).select('documentHash members').lean();
+    const candidates = [...new Set([...list, ...manifests.map((mf) => String(mf.documentHash).toLowerCase())])];
+    const reqs = await m.ChainRequest.find({ documentHash: { $in: candidates } }).select('documentHash requestId').lean();
+    return anchorIndex(reqs, manifests);
 }
 
 function toDocRow(d, anchored) {

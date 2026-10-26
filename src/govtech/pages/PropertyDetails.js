@@ -30,33 +30,20 @@ import { disputeService } from '../../services/disputeService';
 import { useTranslation } from '../../i18n';
 import { useAuth } from '../../auth';
 
-// ─── Event type visual registry ──────────────────────────────────────────────
-// Colors / icons mirror provenanceService.js EVENT_META .
-// Labels come from t('eventTypes.<key>') so they switch language automatically.
-// Every type is derived from LandRegistry / DisputeRegistry / EncumbranceRegistry
-// events (via the indexer) or from the encrypted document store.
-const EVENT_STYLE = {
-    REGISTRATION_SUBMITTED: { color: '#0F172A', bg: '#F1F5F9', icon: 'add_location_alt'  },
-    TRANSFER_INITIATED:     { color: '#7C3AED', bg: '#F5F3FF', icon: 'swap_horiz'        },
-    APPROVAL_RECORDED:      { color: '#0284C7', bg: '#E0F2FE', icon: 'how_to_vote'       },
-    REJECTION_RECORDED:     { color: '#DC2626', bg: '#FEF2F2', icon: 'thumb_down'        },
-    TRANSFER_APPROVED:      { color: '#0284C7', bg: '#E0F2FE', icon: 'verified'          },
-    EXECUTION_DEFERRED:     { color: '#B45309', bg: '#FFFBEB', icon: 'block'             },
-    TITLE_ISSUED:           { color: '#0284C7', bg: '#E0F2FE', icon: 'workspace_premium' },
-    TRANSFER_COMPLETED:     { color: '#059669', bg: '#ECFDF5', icon: 'check_circle'      },
-    REQUEST_REJECTED:       { color: '#DC2626', bg: '#FEF2F2', icon: 'cancel'            },
-    TRANSFER_CANCELLED:     { color: '#475569', bg: '#F8FAFC', icon: 'cancel'            },
-    DISPUTE_OPENED:         { color: '#B91C1C', bg: '#FEF2F2', icon: 'gavel'             },
-    DISPUTE_CLOSED:         { color: '#475569', bg: '#F8FAFC', icon: 'gavel'             },
-    ENCUMBRANCE_REGISTERED: { color: '#B45309', bg: '#FFFBEB', icon: 'account_balance'   },
-    ENCUMBRANCE_DISCHARGED: { color: '#059669', bg: '#ECFDF5', icon: 'account_balance'   },
-    DOCUMENT_ATTACHED:      { color: '#0369A1', bg: '#EFF6FF', icon: 'attach_file'       },
-};
+// Event colour and icon come from the backend (provenanceService EVENT_META)
+// on every event; labels come from t('eventTypes.<key>') so they switch language.
+const FALLBACK_COLOR = '#475569';
 
-function getEventStyle(eventType) {
-    return EVENT_STYLE[eventType] || { color: '#475569', bg: '#F8FAFC', icon: 'info' };
+// Roles allowed to attach documents to any parcel (mirrors documentController ATTACH_ROLES).
+const ATTACH_ROLES = ['REGISTRY_OFFICER', 'SURVEYOR', 'NOTARY'];
+// Roles that may download any stored document (mirrors documentController OFFICER_ROLES).
+const READ_ALL_ROLES = ['REGISTRY_OFFICER', 'SURVEYOR', 'NOTARY', 'AUDITOR', 'ADMIN'];
+
+function canDownload(user, doc) {
+    if (!user || !doc.docId) return false;
+    if (READ_ALL_ROLES.includes(user.role)) return true;
+    return !!user.address && String(doc.uploadedBy || '').toLowerCase() === user.address.toLowerCase();
 }
-
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtSize(kb) {
@@ -70,16 +57,16 @@ function fmtDate(d) {
 }
 
 // ─── EventTypeBadge ───────────────────────────────────────────────────────────
-function EventTypeBadge({ eventType }) {
+function EventTypeBadge({ event }) {
     const { t }   = useTranslation();
-    const style   = getEventStyle(eventType);
-    const label   = eventType ? t(`eventTypes.${eventType}`) : t('property.colEventType');
+    const color   = event.eventColor || FALLBACK_COLOR;
+    const label   = event.eventType ? t(`eventTypes.${event.eventType}`) : t('property.colEventType');
     return (
         <span
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-public-sans font-bold whitespace-nowrap"
-            style={{ background: style.bg, color: style.color, fontSize: '10px', letterSpacing: '0.05em' }}
+            style={{ background: color + '14', color, fontSize: '10px', letterSpacing: '0.05em' }}
         >
-            <span className="material-symbols-outlined" style={{ fontSize: '11px' }} aria-hidden="true">{style.icon}</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '11px' }} aria-hidden="true">{event.eventIcon || 'info'}</span>
             {label}
         </span>
     );
@@ -379,6 +366,9 @@ export default function PropertyDetails() {
     const [ledger,          setLedger]          = useState([]);
     const [docs,            setDocs]            = useState([]);
     const [showUpload,      setShowUpload]      = useState(false);
+    const [downloadError,   setDownloadError]   = useState('');
+    const { user }            = useAuth();
+    const canAttach           = !!user && ATTACH_ROLES.includes(user.role);
     const [showDisputeModal,setShowDisputeModal]= useState(false);
 
     useEffect(() => {
@@ -552,7 +542,7 @@ export default function PropertyDetails() {
                                             {fmtDate(row.date)}
                                         </td>
                                         <td className="px-5 py-3">
-                                            <EventTypeBadge eventType={row.eventType} />
+                                            <EventTypeBadge event={row} />
                                         </td>
                                         <td className="px-5 py-3 font-public-sans text-body-sm">
                                             <div className="text-on-surface">{row.principal}</div>
@@ -586,7 +576,7 @@ export default function PropertyDetails() {
                                 {t('property.officialDocsSubtitle')}
                             </p>
                         </div>
-                        <button
+                        {canAttach && <button
                             onClick={() => setShowUpload((v) => !v)}
                             title={showUpload ? t('property.closeUploadPanel') : t('property.attachNewDocumentBtn')}
                             aria-expanded={showUpload}
@@ -595,8 +585,12 @@ export default function PropertyDetails() {
                             <span className="material-symbols-outlined text-[20px]" aria-hidden="true">
                                 {showUpload ? 'close' : 'attach_file'}
                             </span>
-                        </button>
+                        </button>}
                     </div>
+
+                    {downloadError && (
+                        <p role="alert" className="font-public-sans text-body-sm text-error">{downloadError}</p>
+                    )}
 
                     {/* Document list */}
                     <ul className="flex flex-col gap-2">
@@ -647,22 +641,23 @@ export default function PropertyDetails() {
                                             )}
                                         </div>
                                     </div>
-                                    {/* Download (decrypted server-side, access-controlled) */}
-                                    <button
-                                        type="button"
-                                        aria-label={`${t('property.openDocument')} ${d.name}`}
-                                        title={t('property.openDocument')}
-                                        onClick={() => {
-                                            if (!d.docId) return;
-                                            parcelService.openDocument(d.docId, d.name).catch((err) => {
-                                                console.error('Document download failed', err);
-                                            });
-                                        }}
-                                        disabled={!d.docId}
-                                        className="text-on-surface-variant hover:text-on-surface flex-shrink-0 mt-0.5 transition-colors disabled:opacity-40"
-                                    >
-                                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }} aria-hidden="true">download</span>
-                                    </button>
+                                    {/* Download (decrypted server-side; officers and the uploader only) */}
+                                    {canDownload(user, d) && (
+                                        <button
+                                            type="button"
+                                            aria-label={`${t('property.openDocument')} ${d.name}`}
+                                            title={t('property.openDocument')}
+                                            onClick={() => {
+                                                setDownloadError('');
+                                                parcelService.openDocument(d.docId, d.name).catch((err) => {
+                                                    setDownloadError(t('property.downloadFailed').replace('{error}', err.message));
+                                                });
+                                            }}
+                                            className="text-on-surface-variant hover:text-on-surface flex-shrink-0 mt-0.5 transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined" style={{ fontSize: '20px' }} aria-hidden="true">download</span>
+                                        </button>
+                                    )}
                                 </li>
                             );
                         })}

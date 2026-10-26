@@ -5,20 +5,12 @@
 
 import { http } from './httpClient';
 import { ENDPOINTS } from '../config/api';
+import { uploadDocument } from '../chain/documents';
 
 function qs(params) {
     const entries = Object.entries(params).filter(function(e) { return e[1] != null && e[1] !== ''; });
     if (!entries.length) return '';
     return '?' + entries.map(function(e) { return encodeURIComponent(e[0]) + '=' + encodeURIComponent(e[1]); }).join('&');
-}
-
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
-        reader.onerror = () => reject(reader.error || new Error('Could not read file'));
-        reader.readAsDataURL(file);
-    });
 }
 
 export const parcelService = {
@@ -50,23 +42,12 @@ export const parcelService = {
      * @param {File} file
      * @param {string} type  document type (SURVEY_PLAN, DEED_OF_SALE, …)
      */
-    uploadDocument: async (pin, file, type) => {
-        const contentBase64 = await fileToBase64(file);
-        return http.post(ENDPOINTS.documents, {
-            contentBase64, name: file.name, type: type || 'OTHER',
-            mimeType: file.type || 'application/octet-stream', parcelPin: pin,
-        });
-    },
+    uploadDocument: (pin, file, type) => uploadDocument(file, { type: type || 'OTHER', parcelPin: pin }),
 
     /** Download and decrypt a stored document (authorised), then open it. */
     openDocument: async (docId, name) => {
-        let token = null;
-        try { token = window.localStorage.getItem('lmbs.token'); } catch (_) { /* ignore */ }
-        const res = await fetch(`${ENDPOINTS.documents}/${encodeURIComponent(docId)}`, {
-            headers: token ? { Authorization: 'Bearer ' + token } : {},
-        });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        const url = URL.createObjectURL(await res.blob());
+        const blob = await http.get(`${ENDPOINTS.documents}/${encodeURIComponent(docId)}`, { responseType: 'blob' });
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
         if (name) a.download = name;

@@ -287,7 +287,8 @@
     "statusPending": "E Emetse",
     "docAnchored": "e ankeroe kopong #{id}",
     "docNotAnchored": "ha e e-so ankeroe ho blockchain",
-    "openDocument": "Jarolla"
+    "openDocument": "Jarolla",
+    "downloadFailed": "Ho jarolla ho hlolehile: {error}"
   },
   "docTypes": {
     "SURVEY_PLAN": "Moralo oa Ketelo",

@@ -15,7 +15,7 @@ function toBase64(buffer) {
 export async function uploadDocument(file, { type = 'OTHER', parcelPin } = {}) {
     const buf = await file.arrayBuffer();
     return http.post(`${API_BASE}/api/documents`, {
-        contentBase64: toBase64(buf), name: file.name, mimeType: file.type, type, parcelPin,
+        contentBase64: toBase64(buf), name: file.name, mimeType: file.type || 'application/octet-stream', type, parcelPin,
     });
 }
 

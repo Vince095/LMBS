@@ -102,9 +102,12 @@ function validateStep(step, form, docs, isTransfer, walletLocked, t) {
     }
     if (step === 2) {
         if (blank(form.pin))            e.pin      = t('regwizard.pinRequired');
-        if (blank(form.district))       e.district = t('regwizard.districtRequired');
-        if (!(Number(form.areaM2) > 0)) e.areaM2   = t('regwizard.areaRequired');
-        if (blank(form.useType))        e.useType  = t('regwizard.landUseRequired');
+        // A transfer moves an existing title; its parcel attributes are already on record.
+        if (!isTransfer) {
+            if (blank(form.district))       e.district = t('regwizard.districtRequired');
+            if (!(Number(form.areaM2) > 0)) e.areaM2   = t('regwizard.areaRequired');
+            if (blank(form.useType))        e.useType  = t('regwizard.landUseRequired');
+        }
         if (isTransfer && (blank(form.priceLSL) || Number(form.priceLSL) < 0)) e.priceLSL = t('regwizard.priceRequired');
     }
     if (step === 3) {
@@ -177,6 +180,7 @@ function PropertyStep({ form, set, errors, isTransfer, onBack, onNext }) {
                 <Field label={t('regwizard.parcelPin')} required error={errors.pin}>
                     <input className={fieldCls(errors, 'pin')} aria-required="true" aria-invalid={!!errors.pin} value={form.pin || ''} onChange={(e) => set('pin', e.target.value)} placeholder="LSO-MAS-00001-2026-AB12" />
                 </Field>
+                {!isTransfer && <>
                 <Field label={t('regwizard.district')} required error={errors.district}>
                     <select className={fieldCls(errors, 'district')} aria-required="true" aria-invalid={!!errors.district} value={form.district || ''} onChange={(e) => set('district', e.target.value)}>
                         <option value="">{t('regwizard.selectDistrict')}</option>
@@ -198,6 +202,7 @@ function PropertyStep({ form, set, errors, isTransfer, onBack, onNext }) {
                         <option value="OTHER">{t('regwizard.landUseOther')}</option>
                     </select>
                 </Field>
+                </>}
                 <div className="md:col-span-2">
                     <Field label={t('regwizard.salePrice')} required={isTransfer} error={errors.priceLSL}>
                         <input type="number" min="0" className={fieldCls(errors, 'priceLSL')} aria-required={isTransfer} aria-invalid={!!errors.priceLSL} value={form.priceLSL || ''} onChange={(e) => set('priceLSL', e.target.value)} placeholder="0 for gift transfer" />

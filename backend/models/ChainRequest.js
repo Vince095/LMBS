@@ -14,6 +14,7 @@ const decisionSchema = new Schema({
     viaSignature: Boolean,
     txHash: String,
     blockNumber: Number,
+    at: Date, // mined block time
 }, { _id: false });
 
 const chainRequestSchema = new Schema({
@@ -34,8 +35,10 @@ const chainRequestSchema = new Schema({
     blocker: String,
     submittedTx: String,
     submittedBlock: Number,
+    submittedAt: Date, // mined block time
     executedTx: String,
     executedBlock: Number,
+    executedAt: Date,
     closedTx: String,
 }, { timestamps: true, collection: 'chain_requests' });
 

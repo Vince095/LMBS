@@ -30,7 +30,7 @@ async function partyName(models, address) {
 }
 
 /**
- * Apply one decoded event. `ev` = { contract, name, args }, `meta` = { txHash, blockNumber }.
+ * Apply one decoded event. `ev` = { contract, name, args }, `meta` = { txHash, blockNumber, timestamp? }.
  * Exported for unit tests (models can be mocked).
  */
 async function applyEvent(models, ev, meta) {
@@ -57,6 +57,7 @@ async function applyEvent(models, ev, meta) {
                         threshold: Number(a.threshold),
                         submittedTx: meta.txHash,
                         submittedBlock: meta.blockNumber,
+                        submittedAt: meta.timestamp,
                     },
                 },
                 { upsert: true },
@@ -76,6 +77,7 @@ async function applyEvent(models, ev, meta) {
                     viaSignature: a.viaSignature,
                     txHash: meta.txHash,
                     blockNumber: meta.blockNumber,
+                    at: meta.timestamp,
                 } } },
             );
             await ChainRequest.updateOne({ requestId: id }, { $set: { approvals: Number(a.approvals), rejections: Number(a.rejections) } });
@@ -134,7 +136,7 @@ async function onExecuted(models, id, a, meta) {
 
     await ChainRequest.updateOne(
         { requestId: id },
-        { $set: { status: 'EXECUTED', executedTx: meta.txHash, executedBlock: meta.blockNumber, blocker: null } },
+        { $set: { status: 'EXECUTED', executedTx: meta.txHash, executedBlock: meta.blockNumber, executedAt: meta.timestamp, blocker: null } },
     );
     const req = await ChainRequest.findOne({ requestId: id }).lean();
     const ownerName = await partyName(models, to);
@@ -228,12 +230,18 @@ async function syncOnce(models) {
         const to = Math.min(head, from + BATCH_BLOCKS - 1);
         const logs = await provider.getLogs({ address: contracts.map((c) => c.address), fromBlock: from, toBlock: to });
         logs.sort((x, y) => (x.blockNumber - y.blockNumber) || (x.index - y.index));
+        // One header fetch per block that carries our events, so read models keep the mined time.
+        const times = new Map();
+        await Promise.all([...new Set(logs.map((l) => l.blockNumber))].map(async (n) => {
+            const b = await provider.getBlock(n).catch(() => null);
+            if (b && b.timestamp) times.set(n, new Date(Number(b.timestamp) * 1000));
+        }));
         for (const log of logs) {
             const c = contracts.find((k) => k.address === log.address.toLowerCase());
             let parsed = null;
             try { parsed = c.iface.parseLog(log); } catch (_) { /* not ours */ }
             if (!parsed) continue;
-            await applyEvent(models, { contract: c.name, name: parsed.name, args: parsed.args }, { txHash: log.transactionHash, blockNumber: log.blockNumber });
+            await applyEvent(models, { contract: c.name, name: parsed.name, args: parsed.args }, { txHash: log.transactionHash, blockNumber: log.blockNumber, timestamp: times.get(log.blockNumber) });
             applied += 1;
         }
         await ChainCursor.updateOne({ _id: cursorId }, { $set: { lastBlock: to } }, { upsert: true });
