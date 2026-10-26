@@ -5,12 +5,14 @@
  *   GET /api/certificates/:pin         → blockchain certificate
  *   GET /api/parcels/:pin/history      → Provenance Ledger events
  *   GET /api/parcels/:pin/documents    → Official Documents panel
- *   POST /api/parcels/:pin/documents   → inline document upload
+ *   POST /api/documents                → inline upload to the encrypted store
  *
  * Provenance Ledger event types follow SAD section 4.4 chaincode events:
- *   PARCEL_REGISTERED | TITLE_ISSUED | TITLE_AMENDED | TITLE_REVOKED
+ *   REGISTRATION_SUBMITTED | TRANSFER_INITIATED | APPROVAL_RECORDED | REJECTION_RECORDED
+ *   TRANSFER_APPROVED | EXECUTION_DEFERRED | TITLE_ISSUED | TRANSFER_COMPLETED
  *   TRANSFER_INITIATED | TRANSFER_APPROVED | TRANSFER_COMPLETED | TRANSFER_CANCELLED
- *   DOCUMENT_ATTACHED | BOUNDARY_UPDATED | LEGACY_DIGITISATION | AUDIT_EVENT
+ *   REQUEST_REJECTED | TRANSFER_CANCELLED | DISPUTE_OPENED | DISPUTE_CLOSED
+ *   ENCUMBRANCE_REGISTERED | ENCUMBRANCE_DISCHARGED | DOCUMENT_ATTACHED
  *
  * NOTE: Encumbrances and disputes are NOT handled in this release and do NOT
  *       appear anywhere on this page.
@@ -31,20 +33,24 @@ import { useAuth } from '../../auth';
 // ─── Event type visual registry ──────────────────────────────────────────────
 // Colors / icons mirror provenanceService.js EVENT_META .
 // Labels come from t('eventTypes.<key>') so they switch language automatically.
-// Encumbrance and dispute types are intentionally absent from this release.
+// Every type is derived from LandRegistry / DisputeRegistry / EncumbranceRegistry
+// events (via the indexer) or from the encrypted document store.
 const EVENT_STYLE = {
-    PARCEL_REGISTERED:  { color: '#0F172A', bg: '#F1F5F9', icon: 'add_location_alt'  },
-    BOUNDARY_UPDATED:   { color: '#059669', bg: '#ECFDF5', icon: 'edit_location_alt' },
-    TITLE_ISSUED:       { color: '#0284C7', bg: '#E0F2FE', icon: 'workspace_premium' },
-    TITLE_AMENDED:      { color: '#D97706', bg: '#FFFBEB', icon: 'contract_edit'     },
-    TITLE_REVOKED:      { color: '#DC2626', bg: '#FEF2F2', icon: 'cancel'            },
-    TRANSFER_INITIATED: { color: '#7C3AED', bg: '#F5F3FF', icon: 'swap_horiz'        },
-    TRANSFER_APPROVED:  { color: '#0284C7', bg: '#E0F2FE', icon: 'verified'          },
-    TRANSFER_COMPLETED: { color: '#059669', bg: '#ECFDF5', icon: 'check_circle'      },
-    TRANSFER_CANCELLED: { color: '#475569', bg: '#F8FAFC', icon: 'cancel'            },
-    DOCUMENT_ATTACHED:  { color: '#0369A1', bg: '#EFF6FF', icon: 'attach_file'       },
-    LEGACY_DIGITISATION:{ color: '#475569', bg: '#F8FAFC', icon: 'history'           },
-    AUDIT_EVENT:        { color: '#475569', bg: '#F8FAFC', icon: 'policy'            },
+    REGISTRATION_SUBMITTED: { color: '#0F172A', bg: '#F1F5F9', icon: 'add_location_alt'  },
+    TRANSFER_INITIATED:     { color: '#7C3AED', bg: '#F5F3FF', icon: 'swap_horiz'        },
+    APPROVAL_RECORDED:      { color: '#0284C7', bg: '#E0F2FE', icon: 'how_to_vote'       },
+    REJECTION_RECORDED:     { color: '#DC2626', bg: '#FEF2F2', icon: 'thumb_down'        },
+    TRANSFER_APPROVED:      { color: '#0284C7', bg: '#E0F2FE', icon: 'verified'          },
+    EXECUTION_DEFERRED:     { color: '#B45309', bg: '#FFFBEB', icon: 'block'             },
+    TITLE_ISSUED:           { color: '#0284C7', bg: '#E0F2FE', icon: 'workspace_premium' },
+    TRANSFER_COMPLETED:     { color: '#059669', bg: '#ECFDF5', icon: 'check_circle'      },
+    REQUEST_REJECTED:       { color: '#DC2626', bg: '#FEF2F2', icon: 'cancel'            },
+    TRANSFER_CANCELLED:     { color: '#475569', bg: '#F8FAFC', icon: 'cancel'            },
+    DISPUTE_OPENED:         { color: '#B91C1C', bg: '#FEF2F2', icon: 'gavel'             },
+    DISPUTE_CLOSED:         { color: '#475569', bg: '#F8FAFC', icon: 'gavel'             },
+    ENCUMBRANCE_REGISTERED: { color: '#B45309', bg: '#FFFBEB', icon: 'account_balance'   },
+    ENCUMBRANCE_DISCHARGED: { color: '#059669', bg: '#ECFDF5', icon: 'account_balance'   },
+    DOCUMENT_ATTACHED:      { color: '#0369A1', bg: '#EFF6FF', icon: 'attach_file'       },
 };
 
 function getEventStyle(eventType) {
@@ -123,15 +129,17 @@ function UploadDocumentPanel({ pin, onUploaded }) {
         setBusy(true);
         setError('');
         try {
-            const result = await parcelService.uploadDocument(pin, {
-                type,
-                name:   file.name,
-                sizeKB: Math.round(file.size / 1024),
-                // ipfsCid / sha256 are populated by the backend IPFS anchoring pipeline
-            });
+            const result = await parcelService.uploadDocument(pin, file, type);
             setFile(null);
             setType('OTHER');
-            if (onUploaded && result && result.doc) onUploaded(result.doc);
+            if (onUploaded && result) {
+                onUploaded({
+                    id: result.docId, docId: result.docId, name: result.name || file.name, type: result.type,
+                    documentHash: result.documentHash, sha256: result.sha256,
+                    sizeKB: Math.ceil((result.sizeBytes || file.size) / 1024),
+                    uploadedAt: new Date().toISOString(), anchoredOnChain: false,
+                });
+            }
         } catch (err) {
             setError(err.message || t('property.uploadFailed'));
         } finally {
@@ -623,34 +631,38 @@ export default function PropertyDetails() {
                                                     {fmtDate(d.uploadedAt)}{d.sizeKB ? ' · ' + fmtSize(d.sizeKB) : ''}
                                                 </span>
                                             </div>
-                                            {/* IPFS CID (if anchored) */}
-                                            {d.ipfsCid && (
+                                            {/* keccak256 of the plaintext; anchored when used in an on-chain request */}
+                                            {d.documentHash && (
                                                 <div
-                                                    className="font-public-sans font-bold uppercase tracking-wider text-on-surface-variant mt-0.5 truncate"
+                                                    className="font-mono text-on-surface-variant mt-0.5 truncate"
                                                     style={{ fontSize: '9px' }}
-                                                    title={d.ipfsCid}
+                                                    title={d.documentHash}
                                                 >
-                                                    IPFS: {d.ipfsCid.slice(0, 16)}…
+                                                    keccak256: {d.documentHash.slice(0, 10)}…{d.documentHash.slice(-6)}
+                                                    {' · '}
+                                                    {d.anchoredOnChain
+                                                        ? t('property.docAnchored').replace('{id}', d.requestId)
+                                                        : t('property.docNotAnchored')}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                    {/* View / download action */}
-                                    <a
-                                        href={d.ipfsCid ? `https://ipfs.io/ipfs/${d.ipfsCid}` : '#'}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        aria-label={`View ${d.name}`}
-                                        onClick={(e) => {
-                                            if (!d.ipfsCid) {
-                                                e.preventDefault();
-                                                window.alert(t('property.notAnchoredAlert'));
-                                            }
+                                    {/* Download (decrypted server-side, access-controlled) */}
+                                    <button
+                                        type="button"
+                                        aria-label={`${t('property.openDocument')} ${d.name}`}
+                                        title={t('property.openDocument')}
+                                        onClick={() => {
+                                            if (!d.docId) return;
+                                            parcelService.openDocument(d.docId, d.name).catch((err) => {
+                                                console.error('Document download failed', err);
+                                            });
                                         }}
-                                        className="text-on-surface-variant hover:text-on-surface flex-shrink-0 mt-0.5 transition-colors"
+                                        disabled={!d.docId}
+                                        className="text-on-surface-variant hover:text-on-surface flex-shrink-0 mt-0.5 transition-colors disabled:opacity-40"
                                     >
-                                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }} aria-hidden="true">open_in_new</span>
-                                    </a>
+                                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }} aria-hidden="true">download</span>
+                                    </button>
                                 </li>
                             );
                         })}

@@ -61,66 +61,17 @@ async function documents(req, res, next) {
 
 /**
  * GET /api/parcels/documents
- * Cross-parcel document index — returns all supporting documents across all parcels,
- * with their parcelPin and district for filtering.
+ * Cross-parcel index of documents in the encrypted store.
  * Query params: type, district, limit (max 200), page (1-based).
  */
 async function listDocuments(req, res, next) {
     try {
-        var limit  = Math.min(Number(req.query.limit) || 50, 200);
-        var page   = Math.max(Number(req.query.page)  || 1,  1);
-        var skip   = (page - 1) * limit;
-
-        var matchStage = {};
-        if (req.query.district) matchStage.district = req.query.district;
-
-        var docMatchStage = {};
-        if (req.query.type) docMatchStage['docs.type'] = req.query.type;
-
-        // Aggregate: unwind supportingDocs array, flatten into rows
-        var pipeline = [
-            { $match: matchStage },
-            { $project: { pin: 1, district: 1, landUse: 1, docs: '$supportingDocs' } },
-            { $unwind: { path: '$docs', includeArrayIndex: 'docIndex', preserveNullAndEmptyArrays: false } },
-        ];
-        if (req.query.type) {
-            pipeline.push({ $match: { 'docs.type': req.query.type } });
-        }
-
-        var countPipeline = pipeline.concat([{ $count: 'total' }]);
-        var dataPipeline  = pipeline.concat([
-            { $sort: { 'docs.uploadedAt': -1 } },
-            { $skip: skip },
-            { $limit: limit },
-            { $project: {
-                _id:       0,
-                id:        { $concat: ['$pin', '-', { $toString: '$docIndex' }] },
-                parcelPin: '$pin',
-                district:  1,
-                landUse:   1,
-                type:      '$docs.type',
-                name:      '$docs.name',
-                ipfsCid:   '$docs.ipfsCid',
-                sha256:    '$docs.sha256',
-                sizeKB:    '$docs.sizeKB',
-                uploadedBy:'$docs.uploadedBy',
-                uploadedAt:'$docs.uploadedAt',
-            }},
-        ]);
-
-        var [rows, countResult] = await Promise.all([
-            Parcel.aggregate(dataPipeline),
-            Parcel.aggregate(countPipeline),
-        ]);
-
-        var total = countResult.length > 0 ? countResult[0].total : 0;
-        res.json({
-            documents: rows,
-            total:     total,
-            page:      page,
-            limit:     limit,
-            pages:     Math.ceil(total / limit),
-        });
+        res.json(await provenanceService.listDocuments({
+            type: req.query.type,
+            district: req.query.district,
+            limit: Math.min(Number(req.query.limit) || 50, 200),
+            page: Math.max(Number(req.query.page) || 1, 1),
+        }));
     } catch (err) { next(err); }
 }
 
@@ -128,16 +79,6 @@ async function gisHistory(req, res, next) {
     try {
         res.json(await provenanceService.gisHistory(req.params.pin));
     } catch (err) { next(err); }
-}
-
-async function uploadDocument(req, res, next) {
-    try {
-        var result = await provenanceService.uploadDocument(req.params.pin, req.body);
-        res.status(201).json(result);
-    } catch (err) {
-        if (err.status === 404) return next(new HttpError(404, err.message));
-        next(err);
-    }
 }
 
 async function notFoundIfMissing(_req, _res, next) {
@@ -149,7 +90,6 @@ module.exports = {
     listDocuments:     listDocuments,
     history:           history,
     documents:         documents,
-    uploadDocument:    uploadDocument,
     gisHistory:        gisHistory,
     notFoundIfMissing: notFoundIfMissing,
     getParcel:         null, // set below

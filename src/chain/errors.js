@@ -31,16 +31,46 @@ const MESSAGES = {
     AlreadyRegistered: 'This wallet already has an identity record.',
 };
 
+// Wallets wrap the revert payload at different depths (MetaMask: info.error.data.data,
+// error.data.data, or a JSON `body` string). Collect every hex blob that could be one.
+function revertDataCandidates(e, depth = 0, out = []) {
+    if (e == null || depth > 6) return out;
+    if (typeof e === 'string') {
+        if (/^0x[0-9a-fA-F]{8,}$/.test(e)) out.push(e);
+        else if (e.startsWith('{')) { try { revertDataCandidates(JSON.parse(e), depth + 1, out); } catch (_) { /* not JSON */ } }
+        return out;
+    }
+    if (typeof e !== 'object') return out;
+    for (const k of ['data', 'error', 'info', 'cause', 'payload', 'body']) revertDataCandidates(e[k], depth + 1, out);
+    return out;
+}
+
+// Innermost human message from the wallet / node (e.g. "nonce too low", "execution reverted").
+function innerMessage(e, depth = 0) {
+    if (!e || typeof e !== 'object' || depth > 6) return null;
+    for (const k of ['error', 'info', 'cause', 'data']) {
+        const m = innerMessage(e[k], depth + 1);
+        if (m) return m;
+    }
+    return depth > 0 && typeof e.message === 'string' ? e.message : null;
+}
+
 export function decodeChainError(err) {
     if (!err) return 'Unknown error';
     if (err.code === 'ACTION_REJECTED' || err.code === 4001) return 'You rejected the request in your wallet.';
     let name = err.revert && err.revert.name;
-    const data = err.data || (err.info && err.info.error && err.info.error.data) || (err.error && err.error.data);
-    if (!name && typeof data === 'string') {
-        for (const i of IFACES) {
-            try { const p = i.parseError(data); if (p) { name = p.name; break; } } catch (_) { /* next */ }
+    if (!name) {
+        outer: for (const data of revertDataCandidates(err)) {
+            for (const i of IFACES) {
+                try { const p = i.parseError(data); if (p) { name = p.name; break outer; } } catch (_) { /* next */ }
+            }
         }
     }
     if (name) return MESSAGES[name] || `The contract rejected the action (${name}).`;
+    const inner = innerMessage(err);
+    if (/nonce/i.test(inner || '')) {
+        return `Your wallet's transaction count is out of sync with the network (${inner}). In MetaMask open Settings → Advanced → "Clear activity tab data", then try again.`;
+    }
+    if (/could not coalesce/i.test(err.shortMessage || err.message || '') && inner) return `The wallet reported: ${inner}`;
     return err.shortMessage || err.message || String(err);
 }
