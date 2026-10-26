@@ -5,12 +5,14 @@
  *   GET /api/certificates/:pin         → blockchain certificate
  *   GET /api/parcels/:pin/history      → Provenance Ledger events
  *   GET /api/parcels/:pin/documents    → Official Documents panel
- *   POST /api/parcels/:pin/documents   → inline document upload
+ *   POST /api/documents                → inline upload to the encrypted store
  *
  * Provenance Ledger event types follow SAD section 4.4 chaincode events:
- *   PARCEL_REGISTERED | TITLE_ISSUED | TITLE_AMENDED | TITLE_REVOKED
+ *   REGISTRATION_SUBMITTED | TRANSFER_INITIATED | APPROVAL_RECORDED | REJECTION_RECORDED
+ *   TRANSFER_APPROVED | EXECUTION_DEFERRED | TITLE_ISSUED | TRANSFER_COMPLETED
  *   TRANSFER_INITIATED | TRANSFER_APPROVED | TRANSFER_COMPLETED | TRANSFER_CANCELLED
- *   DOCUMENT_ATTACHED | BOUNDARY_UPDATED | LEGACY_DIGITISATION | AUDIT_EVENT
+ *   REQUEST_REJECTED | TRANSFER_CANCELLED | DISPUTE_OPENED | DISPUTE_CLOSED
+ *   ENCUMBRANCE_REGISTERED | ENCUMBRANCE_DISCHARGED | DOCUMENT_ATTACHED
  *
  * NOTE: Encumbrances and disputes are NOT handled in this release and do NOT
  *       appear anywhere on this page.
@@ -28,43 +30,20 @@ import { disputeService } from '../../services/disputeService';
 import { useTranslation } from '../../i18n';
 import { useAuth } from '../../auth';
 
-// ─── Event type visual registry ──────────────────────────────────────────────
-// Colors / icons mirror provenanceService.js EVENT_META .
-// Labels come from t('eventTypes.<key>') so they switch language automatically.
-// Encumbrance and dispute types are intentionally absent from this release.
-const EVENT_STYLE = {
-    PARCEL_REGISTERED:  { color: '#0F172A', bg: '#F1F5F9', icon: 'add_location_alt'  },
-    BOUNDARY_UPDATED:   { color: '#059669', bg: '#ECFDF5', icon: 'edit_location_alt' },
-    TITLE_ISSUED:       { color: '#0284C7', bg: '#E0F2FE', icon: 'workspace_premium' },
-    TITLE_AMENDED:      { color: '#D97706', bg: '#FFFBEB', icon: 'contract_edit'     },
-    TITLE_REVOKED:      { color: '#DC2626', bg: '#FEF2F2', icon: 'cancel'            },
-    TRANSFER_INITIATED: { color: '#7C3AED', bg: '#F5F3FF', icon: 'swap_horiz'        },
-    TRANSFER_APPROVED:  { color: '#0284C7', bg: '#E0F2FE', icon: 'verified'          },
-    TRANSFER_COMPLETED: { color: '#059669', bg: '#ECFDF5', icon: 'check_circle'      },
-    TRANSFER_CANCELLED: { color: '#475569', bg: '#F8FAFC', icon: 'cancel'            },
-    DOCUMENT_ATTACHED:  { color: '#0369A1', bg: '#EFF6FF', icon: 'attach_file'       },
-    LEGACY_DIGITISATION:{ color: '#475569', bg: '#F8FAFC', icon: 'history'           },
-    AUDIT_EVENT:        { color: '#475569', bg: '#F8FAFC', icon: 'policy'            },
-};
+// Event colour and icon come from the backend (provenanceService EVENT_META)
+// on every event; labels come from t('eventTypes.<key>') so they switch language.
+const FALLBACK_COLOR = '#475569';
 
-function getEventStyle(eventType) {
-    return EVENT_STYLE[eventType] || { color: '#475569', bg: '#F8FAFC', icon: 'info' };
+// Roles allowed to attach documents to any parcel (mirrors documentController ATTACH_ROLES).
+const ATTACH_ROLES = ['REGISTRY_OFFICER', 'SURVEYOR', 'NOTARY'];
+// Roles that may download any stored document (mirrors documentController OFFICER_ROLES).
+const READ_ALL_ROLES = ['REGISTRY_OFFICER', 'SURVEYOR', 'NOTARY', 'AUDITOR', 'ADMIN'];
+
+function canDownload(user, doc) {
+    if (!user || !doc.docId) return false;
+    if (READ_ALL_ROLES.includes(user.role)) return true;
+    return !!user.address && String(doc.uploadedBy || '').toLowerCase() === user.address.toLowerCase();
 }
-
-// ─── Fallback sample data
-const SAMPLE_LEDGER = [
-    { date: '2023-11-04', eventType: 'TRANSFER_COMPLETED', principal: 'Apex Holdings Ltd.',       principalSub: 'from Estate of J. Reynolds', hash: '0x7fa3…c91e' },
-    { date: '2022-03-18', eventType: 'TITLE_AMENDED',      principal: 'LAA Registry Officer',     principalSub: 'Owner name correction',      hash: '0x3b1c…a84f' },
-    { date: '2020-06-08', eventType: 'BOUNDARY_UPDATED',   principal: 'Surveyor-General Office',  principalSub: null,                         hash: '0x4d8e…f220' },
-    { date: '2015-09-22', eventType: 'TITLE_ISSUED',       principal: 'Estate of J. Reynolds',    principalSub: 'Deed No. TD-2015-00421',    hash: '0x9a21…b77c' },
-    { date: '1998-02-15', eventType: 'LEGACY_DIGITISATION',principal: 'System Admin',             principalSub: 'Paper records digitised',    hash: '0x2f0d…5510' },
-];
-
-const SAMPLE_DOCS = [
-    { id: 'sd-1', name: 'Deed of Sale',             type: 'DEED_OF_SALE',   uploadedAt: '2023-11-04', sizeKB: 482  },
-    { id: 'sd-2', name: 'Survey Plan — Topograph.',  type: 'SURVEY_PLAN',   uploadedAt: '2023-04-12', sizeKB: 1240 },
-    { id: 'sd-3', name: 'Environmental Assessment',  type: 'ENV_ASSESSMENT', uploadedAt: '2020-06-08', sizeKB: 328  },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtSize(kb) {
@@ -78,16 +57,16 @@ function fmtDate(d) {
 }
 
 // ─── EventTypeBadge ───────────────────────────────────────────────────────────
-function EventTypeBadge({ eventType }) {
+function EventTypeBadge({ event }) {
     const { t }   = useTranslation();
-    const style   = getEventStyle(eventType);
-    const label   = eventType ? t(`eventTypes.${eventType}`) : t('property.colEventType');
+    const color   = event.eventColor || FALLBACK_COLOR;
+    const label   = event.eventType ? t(`eventTypes.${event.eventType}`) : t('property.colEventType');
     return (
         <span
             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-public-sans font-bold whitespace-nowrap"
-            style={{ background: style.bg, color: style.color, fontSize: '10px', letterSpacing: '0.05em' }}
+            style={{ background: color + '14', color, fontSize: '10px', letterSpacing: '0.05em' }}
         >
-            <span className="material-symbols-outlined" style={{ fontSize: '11px' }} aria-hidden="true">{style.icon}</span>
+            <span className="material-symbols-outlined" style={{ fontSize: '11px' }} aria-hidden="true">{event.eventIcon || 'info'}</span>
             {label}
         </span>
     );
@@ -137,15 +116,17 @@ function UploadDocumentPanel({ pin, onUploaded }) {
         setBusy(true);
         setError('');
         try {
-            const result = await parcelService.uploadDocument(pin, {
-                type,
-                name:   file.name,
-                sizeKB: Math.round(file.size / 1024),
-                // ipfsCid / sha256 are populated by the backend IPFS anchoring pipeline
-            });
+            const result = await parcelService.uploadDocument(pin, file, type);
             setFile(null);
             setType('OTHER');
-            if (onUploaded && result && result.doc) onUploaded(result.doc);
+            if (onUploaded && result) {
+                onUploaded({
+                    id: result.docId, docId: result.docId, name: result.name || file.name, type: result.type,
+                    documentHash: result.documentHash, sha256: result.sha256,
+                    sizeKB: Math.ceil((result.sizeBytes || file.size) / 1024),
+                    uploadedAt: new Date().toISOString(), anchoredOnChain: false,
+                });
+            }
         } catch (err) {
             setError(err.message || t('property.uploadFailed'));
         } finally {
@@ -382,9 +363,12 @@ export default function PropertyDetails() {
     const display             = pin.startsWith('Parcel ') ? pin : ('Parcel ' + pin);
 
     const [cert,            setCert]            = useState(null);
-    const [ledger,          setLedger]          = useState(SAMPLE_LEDGER);
-    const [docs,            setDocs]            = useState(SAMPLE_DOCS);
+    const [ledger,          setLedger]          = useState([]);
+    const [docs,            setDocs]            = useState([]);
     const [showUpload,      setShowUpload]      = useState(false);
+    const [downloadError,   setDownloadError]   = useState('');
+    const { user }            = useAuth();
+    const canAttach           = !!user && ATTACH_ROLES.includes(user.role);
     const [showDisputeModal,setShowDisputeModal]= useState(false);
 
     useEffect(() => {
@@ -558,7 +542,7 @@ export default function PropertyDetails() {
                                             {fmtDate(row.date)}
                                         </td>
                                         <td className="px-5 py-3">
-                                            <EventTypeBadge eventType={row.eventType} />
+                                            <EventTypeBadge event={row} />
                                         </td>
                                         <td className="px-5 py-3 font-public-sans text-body-sm">
                                             <div className="text-on-surface">{row.principal}</div>
@@ -592,7 +576,7 @@ export default function PropertyDetails() {
                                 {t('property.officialDocsSubtitle')}
                             </p>
                         </div>
-                        <button
+                        {canAttach && <button
                             onClick={() => setShowUpload((v) => !v)}
                             title={showUpload ? t('property.closeUploadPanel') : t('property.attachNewDocumentBtn')}
                             aria-expanded={showUpload}
@@ -601,8 +585,12 @@ export default function PropertyDetails() {
                             <span className="material-symbols-outlined text-[20px]" aria-hidden="true">
                                 {showUpload ? 'close' : 'attach_file'}
                             </span>
-                        </button>
+                        </button>}
                     </div>
+
+                    {downloadError && (
+                        <p role="alert" className="font-public-sans text-body-sm text-error">{downloadError}</p>
+                    )}
 
                     {/* Document list */}
                     <ul className="flex flex-col gap-2">
@@ -637,34 +625,39 @@ export default function PropertyDetails() {
                                                     {fmtDate(d.uploadedAt)}{d.sizeKB ? ' · ' + fmtSize(d.sizeKB) : ''}
                                                 </span>
                                             </div>
-                                            {/* IPFS CID (if anchored) */}
-                                            {d.ipfsCid && (
+                                            {/* keccak256 of the plaintext; anchored when used in an on-chain request */}
+                                            {d.documentHash && (
                                                 <div
-                                                    className="font-public-sans font-bold uppercase tracking-wider text-on-surface-variant mt-0.5 truncate"
+                                                    className="font-mono text-on-surface-variant mt-0.5 truncate"
                                                     style={{ fontSize: '9px' }}
-                                                    title={d.ipfsCid}
+                                                    title={d.documentHash}
                                                 >
-                                                    IPFS: {d.ipfsCid.slice(0, 16)}…
+                                                    keccak256: {d.documentHash.slice(0, 10)}…{d.documentHash.slice(-6)}
+                                                    {' · '}
+                                                    {d.anchoredOnChain
+                                                        ? t('property.docAnchored').replace('{id}', d.requestId)
+                                                        : t('property.docNotAnchored')}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                    {/* View / download action */}
-                                    <a
-                                        href={d.ipfsCid ? `https://ipfs.io/ipfs/${d.ipfsCid}` : '#'}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        aria-label={`View ${d.name}`}
-                                        onClick={(e) => {
-                                            if (!d.ipfsCid) {
-                                                e.preventDefault();
-                                                window.alert(t('property.notAnchoredAlert'));
-                                            }
-                                        }}
-                                        className="text-on-surface-variant hover:text-on-surface flex-shrink-0 mt-0.5 transition-colors"
-                                    >
-                                        <span className="material-symbols-outlined" style={{ fontSize: '20px' }} aria-hidden="true">open_in_new</span>
-                                    </a>
+                                    {/* Download (decrypted server-side; officers and the uploader only) */}
+                                    {canDownload(user, d) && (
+                                        <button
+                                            type="button"
+                                            aria-label={`${t('property.openDocument')} ${d.name}`}
+                                            title={t('property.openDocument')}
+                                            onClick={() => {
+                                                setDownloadError('');
+                                                parcelService.openDocument(d.docId, d.name).catch((err) => {
+                                                    setDownloadError(t('property.downloadFailed').replace('{error}', err.message));
+                                                });
+                                            }}
+                                            className="text-on-surface-variant hover:text-on-surface flex-shrink-0 mt-0.5 transition-colors"
+                                        >
+                                            <span className="material-symbols-outlined" style={{ fontSize: '20px' }} aria-hidden="true">download</span>
+                                        </button>
+                                    )}
                                 </li>
                             );
                         })}

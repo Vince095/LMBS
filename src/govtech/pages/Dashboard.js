@@ -1,6 +1,7 @@
 /**
  * Dashboard - replicates `stitch/lmbs_dashboard/screen.png`.
- * Live data from /api/dashboard + /api/network with graceful fallback.
+ * Live data from /api/dashboard + /api/network. No sample data is shown when
+ * the backend is unreachable (an error is displayed instead).
  * Recent registrations rows are clickable - navigate to the parcel.
  */
 
@@ -11,7 +12,7 @@ import GoogleMap from '../components/GoogleMap';
 import { downloadCSV } from '../components/actions';
 import { dashboardService, networkService } from '../../services';
 
-// Maseru, Lesotho - centre of the seeded sample parcels.
+// Maseru, Lesotho - default map centre.
 const LMBS_CENTRE = [27.4900, -29.3120];
 const SAMPLE_POLYGON = [
     [27.4900, -29.3120], [27.4920, -29.3120],
@@ -19,12 +20,6 @@ const SAMPLE_POLYGON = [
     [27.4900, -29.3120],
 ];
 
-const SAMPLE_RECENT = [
-    { hash: '0x7A9B...2F...', parcelRef: 'GEO-89-204-A', owner: 'Metro Holdings LLC',     status: 'verified', time: '1m' },
-    { hash: '0x3C4D...9E...', parcelRef: 'GEO-12-005-B', owner: 'Sarah Jenkins',           status: 'pending',  time: '2h' },
-    { hash: '0x9F1E...4B2D', parcelRef: 'GEO-55-912-C', owner: 'Crestwood Development',    status: 'disputed', time: '1d' },
-    { hash: '0x1A2B...3C...', parcelRef: 'GEO-88-101-Z', owner: 'Municipal Trust',         status: 'verified', time: '3d' },
-];
 
 function fmt(n) {
     if (n === undefined || n === null) return '-';
@@ -158,7 +153,7 @@ function GeoLedgerPanel({ network }) {
 export default function Dashboard() {
     const [stats, setStats] = useState({});
     const [network, setNetwork] = useState({});
-    const [recent, setRecent] = useState(SAMPLE_RECENT);
+    const [recent, setRecent] = useState([]);
     const [error, setError] = useState(null);
 
     useEffect(() => {
@@ -171,10 +166,10 @@ export default function Dashboard() {
             if (cancelled) return;
             const [s, r, n] = results;
             if (s.status === 'fulfilled') setStats(s.value);
-            if (r.status === 'fulfilled' && Array.isArray(r.value) && r.value.length) setRecent(r.value);
+            if (r.status === 'fulfilled' && Array.isArray(r.value)) setRecent(r.value);
             if (n.status === 'fulfilled') setNetwork(n.value);
             const failed = results.find((x) => x.status === 'rejected');
-            if (failed) setError((failed.reason && failed.reason.message) || 'Backend unreachable - showing demo data');
+            if (failed) setError((failed.reason && failed.reason.message) || 'Backend unreachable - no data shown');
         });
         return () => { cancelled = true; };
     }, []);

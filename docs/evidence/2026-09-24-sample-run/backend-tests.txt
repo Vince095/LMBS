@@ -1,0 +1,259 @@
+PASS test/04.registration.test.js
+  Self-registration
+    ✓ always creates a CITIZEN, even when ADMIN is requested (332 ms)
+    ✓ ignores a wallet address supplied at registration (no unverified wallet claims) (331 ms)
+    ✓ validates input 0 (11 ms)
+    ✓ validates input 1
+    ✓ validates input 2 (1 ms)
+    ✓ rejects a duplicate e-mail (1 ms)
+  Wallet binding by signed challenge
+    ✓ binds the wallet that signed the challenge and issues a token with it (66 ms)
+    ✓ rejects a signature from a different wallet (39 ms)
+    ✓ a challenge can be used only once (29 ms)
+    ✓ an expired challenge is refused (13 ms)
+    ✓ a wallet already linked to another account cannot be claimed (13 ms)
+  console.warn
+    [410] POST /api/transfers/abc/advance - Approvals are recorded on-chain by authorised institutional approvers (LandRegistry.approveRequest).
+      28 |         console.error('[' + status + '] ' + req.method + ' ' + req.originalUrl, err);
+      29 |     } else {
+    > 30 |         console.warn('[' + status + '] ' + req.method + ' ' + req.originalUrl + ' - ' + (err.message || 'client error'));
+         |                 ^
+      31 |     }
+      32 |     /* eslint-enable no-console */
+      33 |
+      at warn (middleware/error.js:30:17)
+      at Layer.handleError (node_modules/router/lib/layer.js:116:17)
+      at trimPrefix (node_modules/router/index.js:340:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at Layer.handleError (node_modules/router/lib/layer.js:111:12)
+      at trimPrefix (node_modules/router/index.js:340:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at node_modules/router/index.js:688:15
+      at next (node_modules/router/index.js:276:14)
+      at next (node_modules/router/lib/route.js:132:14)
+      at next (controllers/transferController.js:138:5)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at Route.dispatch (node_modules/router/lib/route.js:117:3)
+      at handle (node_modules/router/index.js:435:11)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at node_modules/router/index.js:295:15
+      at param (node_modules/router/index.js:600:14)
+      at param (node_modules/router/index.js:610:14)
+      at processParams (node_modules/router/index.js:664:3)
+      at next (node_modules/router/index.js:291:5)
+      at Function.handle (node_modules/router/index.js:186:3)
+      at router (node_modules/router/index.js:60:12)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at node_modules/body-parser/lib/read.js:171:5
+      at invokeCallback (node_modules/raw-body/index.js:238:16)
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+  console.warn
+    [410] POST /api/transfers/abc/cancel - Cancel the request on-chain from the submitting wallet (LandRegistry.cancel); the indexer updates this record.
+      28 |         console.error('[' + status + '] ' + req.method + ' ' + req.originalUrl, err);
+      29 |     } else {
+    > 30 |         console.warn('[' + status + '] ' + req.method + ' ' + req.originalUrl + ' - ' + (err.message || 'client error'));
+         |                 ^
+      31 |     }
+      32 |     /* eslint-enable no-console */
+      33 |
+      at warn (middleware/error.js:30:17)
+      at Layer.handleError (node_modules/router/lib/layer.js:116:17)
+      at trimPrefix (node_modules/router/index.js:340:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at Layer.handleError (node_modules/router/lib/layer.js:111:12)
+      at trimPrefix (node_modules/router/index.js:340:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at Immediate.next (node_modules/router/index.js:291:5)
+      at Immediate._onImmediate (node_modules/router/index.js:688:15)
+PASS test/02.authentication.test.js
+  Protected routes reject anonymous users
+    ✓ get /api/chain/config -> 401 without a token (18 ms)
+    ✓ get /api/chain/requests -> 401 without a token (4 ms)
+    ✓ get /api/profiles/me -> 401 without a token (2 ms)
+    ✓ put /api/profiles/me -> 401 without a token (3 ms)
+    ✓ get /api/profiles/list -> 401 without a token (3 ms)
+    ✓ get /api/profiles/0x0000000000000000000000000000000000000001 -> 401 without a token (2 ms)
+    ✓ post /api/titles -> 401 without a token (2 ms)
+    ✓ post /api/titles/draft -> 401 without a token (2 ms)
+    ✓ get /api/titles/13283-001 -> 401 without a token (4 ms)
+    ✓ post /api/titles/import -> 401 without a token (2 ms)
+    ✓ patch /api/titles/DEED-1 -> 401 without a token (7 ms)
+    ✓ post /api/titles/DEED-1/revoke -> 401 without a token (2 ms)
+    ✓ get /api/transfers -> 401 without a token (2 ms)
+    ✓ post /api/transfers -> 401 without a token (2 ms)
+    ✓ post /api/transfers/abc/advance -> 401 without a token (2 ms)
+    ✓ get /api/disputes -> 401 without a token (2 ms)
+    ✓ post /api/disputes -> 401 without a token (2 ms)
+    ✓ get /api/encumbrances -> 401 without a token (1 ms)
+    ✓ post /api/encumbrances -> 401 without a token (2 ms)
+    ✓ get /api/search/public -> 401 without a token (2 ms)
+    ✓ get /api/search/advanced -> 401 without a token (2 ms)
+    ✓ get /api/notifications/by-address/0x01 -> 401 without a token (1 ms)
+    ✓ post /api/notifications -> 401 without a token (2 ms)
+    ✓ get /api/audit -> 401 without a token (2 ms)
+    ✓ get /api/admin/users -> 401 without a token (2 ms)
+    ✓ get /api/dashboard/stats -> 401 without a token (2 ms)
+    ✓ get /api/parcels -> 401 without a token (1 ms)
+    ✓ post /api/parcels/13283-001/documents -> 401 without a token (2 ms)
+    ✓ get /api/certificates/1 -> 401 without a token (2 ms)
+    ✓ get /api/network/status -> 401 without a token (2 ms)
+    ✓ post /api/documents -> 401 without a token (2 ms)
+    ✓ get /api/documents/0123456789abcdef0123456789abcdef -> 401 without a token (1 ms)
+    ✓ get /api/auth/me -> 401 without a token (9 ms)
+    ✓ post /api/auth/wallet/challenge -> 401 without a token (2 ms)
+    ✓ post /api/auth/change-password -> 401 without a token (2 ms)
+    ✓ health check is public (2 ms)
+    ✓ rejects wrong signing secret (2 ms)
+    ✓ rejects expired token (3 ms)
+    ✓ rejects unsigned (alg=none) token (2 ms)
+    ✓ rejects malformed header (1 ms)
+  Removed insecure endpoints
+    ✓ post /api/signatures/store no longer exists (401 anonymous, 404 authenticated) (5 ms)
+    ✓ get /api/signatures/abc no longer exists (401 anonymous, 404 authenticated) (4 ms)
+    ✓ post /api/transacs/log no longer exists (401 anonymous, 404 authenticated) (4 ms)
+    ✓ post /api/profiles/store no longer exists (401 anonymous, 404 authenticated) (4 ms)
+    ✓ the retired off-chain approval step machine answers 410 Gone (17 ms)
+  console.warn
+    [400] POST /api/transfers - chainTxHash required: the owner must first submit the transfer on-chain (LandRegistry.submitTransfer)
+      28 |         console.error('[' + status + '] ' + req.method + ' ' + req.originalUrl, err);
+      29 |     } else {
+    > 30 |         console.warn('[' + status + '] ' + req.method + ' ' + req.originalUrl + ' - ' + (err.message || 'client error'));
+         |                 ^
+      31 |     }
+      32 |     /* eslint-enable no-console */
+      33 |
+      at warn (middleware/error.js:30:17)
+      at Layer.handleError (node_modules/router/lib/layer.js:116:17)
+      at trimPrefix (node_modules/router/index.js:340:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at Layer.handleError (node_modules/router/lib/layer.js:111:12)
+      at trimPrefix (node_modules/router/index.js:340:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at node_modules/router/index.js:688:15
+      at next (node_modules/router/index.js:276:14)
+      at next (node_modules/router/lib/route.js:132:14)
+      at next (controllers/transferController.js:130:21)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at next (middleware/auth.js:58:12)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at next (node_modules/router/lib/route.js:157:13)
+      at Route.dispatch (node_modules/router/lib/route.js:117:3)
+      at handle (node_modules/router/index.js:435:11)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at node_modules/router/index.js:295:15
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at Function.handle (node_modules/router/index.js:186:3)
+      at router (node_modules/router/index.js:60:12)
+      at Layer.handleRequest (node_modules/router/lib/layer.js:152:17)
+      at trimPrefix (node_modules/router/index.js:342:13)
+      at node_modules/router/index.js:297:9
+      at processParams (node_modules/router/index.js:582:12)
+      at next (node_modules/router/index.js:291:5)
+      at node_modules/body-parser/lib/read.js:171:5
+      at invokeCallback (node_modules/raw-body/index.js:238:16)
+      at done (node_modules/raw-body/index.js:227:7)
+      at IncomingMessage.onEnd (node_modules/raw-body/index.js:287:7)
+PASS test/03.authorization.test.js
+  RBAC is enforced (no permissive mode)
+    ✓ CITIZEN get /api/profiles/list -> 403 (allowed: REGISTRY_OFFICER, AUDITOR) (12 ms)
+    ✓ CITIZEN get /api/profiles/0x00000000000000000000000000000000000000ff -> 403 (allowed: self, REGISTRY_OFFICER, NOTARY, AUDITOR) (3 ms)
+    ✓ CITIZEN post /api/notifications -> 403 (allowed: REGISTRY_OFFICER) (3 ms)
+    ✓ CITIZEN get /api/notifications/by-address/0x00000000000000000000000000000000000000ff -> 403 (allowed: self, REGISTRY_OFFICER, AUDITOR) (3 ms)
+    ✓ CITIZEN post /api/titles/import -> 403 (allowed: REGISTRY_OFFICER) (2 ms)
+    ✓ CITIZEN post /api/titles/DEED-1/revoke -> 403 (allowed: REGISTRY_OFFICER) (3 ms)
+    ✓ CITIZEN patch /api/titles/DEED-1 -> 403 (allowed: REGISTRY_OFFICER) (2 ms)
+    ✓ CITIZEN get /api/transfers/pending -> 403 (allowed: REGISTRY_OFFICER, NOTARY, AUDITOR) (2 ms)
+    ✓ CITIZEN get /api/audit -> 403 (allowed: AUDITOR) (3 ms)
+    ✓ CITIZEN get /api/admin/stats -> 403 (allowed: ADMIN) (3 ms)
+    ✓ CITIZEN get /api/admin/users -> 403 (allowed: ADMIN) (3 ms)
+    ✓ CITIZEN put /api/admin/users/64b000000000000000000001 -> 403 (allowed: ADMIN) (2 ms)
+    ✓ CITIZEN post /api/parcels/13283-001/documents -> 403 (allowed: REGISTRY_OFFICER, SURVEYOR, NOTARY) (2 ms)
+    ✓ CITIZEN get /api/search/advanced -> 403 (allowed: REGISTRY_OFFICER, AUDITOR, NOTARY, SURVEYOR) (3 ms)
+    ✓ CITIZEN post /api/encumbrances -> 403 (allowed: FINANCIAL_INST, REGISTRY_OFFICER) (2 ms)
+    ✓ CITIZEN post /api/disputes/DSP-1/resolve -> 403 (allowed: REGISTRY_OFFICER) (3 ms)
+    ✓ CITIZEN get /api/chain/identity-anchor/64b000000000000000000001 -> 403 (allowed: REGISTRY_OFFICER) (2 ms)
+    ✓ CITIZEN post /api/chain/sync -> 403 (allowed: ADMIN) (3 ms)
+    ✓ an AUDITOR cannot use the admin or officer write endpoints (7 ms)
+  On-chain actions require a verified wallet
+    ✓ post /api/titles -> 403 when the account has no verified wallet (3 ms)
+    ✓ post /api/transfers -> 403 when the account has no verified wallet (3 ms)
+    ✓ an unverified address claim inside the token is ignored (2 ms)
+    ✓ a verified wallet must still supply the on-chain transaction hash (6 ms)
+PASS test/06.chainService.test.js
+  Parcel number normalisation (mirror of LandRegistry.normalizeParcelNumber)
+    ✓ "  13283 - 001 " -> 13283-001 (2 ms)
+    ✓ "mh/12a-7" -> MH/12A-7
+    ✓ "13283-001\n" -> 13283-001
+    ✓ rejects "" (10 ms)
+    ✓ rejects "   " (7 ms)
+    ✓ rejects "13283_001" (1 ms)
+    ✓ rejects "13283.001"
+    ✓ rejects "ab#1" (1 ms)
+    ✓ rejects "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    ✓ rejects "straße-1"
+    ✓ equivalent spellings give the same parcel key (2 ms)
+  verifySubmission
+    ✓ accepts a mined RequestSubmitted from the expected wallet (15 ms)
+    ✓ rejects a request submitted by a different wallet (5 ms)
+    ✓ rejects a reverted transaction (2 ms)
+    ✓ rejects a transaction without a LandRegistry request (e.g. from another contract) (6 ms)
+    ✓ rejects the wrong kind or a different parcel (8 ms)
+    ✓ rejects malformed hashes and unmined transactions (1 ms)
+PASS test/05.documents.test.js
+  Encrypted off-chain document store
+    ✓ stores ciphertext only and returns the on-chain document hash (4 ms)
+    ✓ detects a single modified byte in the encrypted file (12 ms)
+    ✓ detects a hash mismatch with the value anchored on-chain (3 ms)
+    ✓ detects tampering with the recorded metadata hash (1 ms)
+    ✓ rejects empty documents and path-traversal ids
+PASS test/07.indexer.test.js
+  Chain indexer projections
+    ✓ RequestSubmitted creates a PENDING read-model entry only (2 ms)
+    ✓ approvals alone never change ownership (1 ms)
+    ✓ RequestExecuted (transfer) moves ownership in the read model and completes the transfer (1 ms)
+    ✓ RequestExecuted (registration) activates the pending parcel and deed (1 ms)
+    ✓ RequestRejected marks the pending records rejected
+PASS test/08.securityEvidence.test.js
+  Security evidence (static scan of backend/ and src/)
+    ✓ scans a meaningful number of files (1 ms)
+    ✓ no mnemonic / seed-phrase handling anywhere (5 ms)
+    ✓ no code stores signatures or keys in browser storage (3 ms)
+    ✓ no fabricated (random) transaction hashes (2 ms)
+    ✓ no hard-coded private keys or connection-string credentials (3 ms)
+    ✓ the signature-storage backend is gone (1 ms)
+PASS test/01.config.test.js
+  Secure configuration (no default secrets)
+    ✓ accepts strong random secrets
+    ✓ refuses to start with missing JWT secret (4 ms)
+    ✓ refuses to start with short JWT secret (1 ms)
+    ✓ refuses to start with old default JWT secret
+    ✓ refuses to start with placeholder JWT secret (1 ms)
+    ✓ refuses to start with missing encryption key
+    ✓ refuses to start with old default encryption key (1 ms)
+    ✓ refuses to start with non-hex encryption key
+    ✓ refuses to start with missing pseudonym salt (1 ms)
+    ✓ the example env file ships without secret values
+Test Suites: 8 passed, 8 total
+Tests:       122 passed, 122 total
+Snapshots:   0 total
+Time:        2.779 s, estimated 4 s
+Ran all test suites.

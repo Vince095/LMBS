@@ -1,5 +1,5 @@
 {
-  "name": "lmsdapp",
+  "name": "lmbs-portal",
   "version": "0.1.0",
   "private": true,
   "dependencies": {
@@ -18,7 +18,15 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "test:ci": "react-scripts test --watchAll=false",
+    "archive": "node scripts/make-clean-archive.js",
+    "network:setup": "node network/lmbs-network.js setup",
+    "network:setup:docker": "node network/lmbs-network.js setup --docker",
+    "network:start": "node network/lmbs-network.js start",
+    "network:stop": "node network/lmbs-network.js stop",
+    "network:status": "node network/lmbs-network.js status",
+    "network:fault-test": "node network/lmbs-network.js fault-test"
   },
   "eslintConfig": {
     "extends": [

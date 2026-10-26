@@ -1,0 +1,195 @@
+Compiled 33 Solidity files successfully (evm target: cancun).
+
+
+  1. Registration success
+    ✔ valid request + required approvals creates exactly one title and one execution event (695ms)
+    ✔ EXECUTED is set only after the mint succeeded (no premature terminal status)
+    ✔ a verified applicant may submit for themselves; an outsider may not submit for others
+    ✔ rejects an unverified beneficiary and missing survey/document hashes
+    ✔ normalises parcel numbers and rejects malformed ones
+    ✔ snapshots the approval threshold at submission time
+
+  2. Duplicate prevention
+    ✔ rejects a second request for the same canonical parcel while the first is PENDING
+    ✔ rejects a request while the first one is APPROVED but not yet executed
+    ✔ rejects registration of an already registered parcel
+    ✔ releases the reservation after a valid rejection so a correct request can proceed
+    ✔ releases the reservation when the submitter cancels
+
+  3. Owner-only transfer initiation
+    ✔ a non-owner cannot initiate a transfer of another owner's title (68ms)
+    ✔ a validator (approver) cannot initiate a transfer of another owner's title
+    ✔ the registrar and the governance account cannot initiate either
+    ✔ rejects transfers to unverified, zero or same address and to unknown tokens
+
+  4. Governed transfer
+    ✔ owner initiates, approvals reach threshold, ownership changes exactly once and history is recorded (41ms)
+    ✔ only one pending transfer per title; the owner can cancel and start again
+    ✔ the new owner (not the old one) controls the next transfer
+
+  5. Direct-transfer bypass
+    ✔ transferFrom and both safeTransferFrom overloads are rejected outside the workflow (67ms)
+    ✔ operator approvals cannot be granted
+    ✔ blocking direct transfers does not block the authorised internal transfer
+
+  6. Approval integrity
+    ✔ accepts valid EIP-712 votes relayed by anyone and executes at threshold (84ms)
+    ✔ rejects a duplicate approval from the same approver (direct and via signature)
+    ✔ rejects a reused signature / nonce
+    ✔ rejects an expired signature
+    ✔ rejects an unauthorised signer (citizen, registrar, revoked approver)
+    ✔ rejects votes whose signed fields do not match the request, or wrong role/decision
+    ✔ binds chain id and verifying contract: a signature for another domain recovers a different signer
+    ✔ rejects malformed signatures
+    ✔ prevents conflict of interest: submitter, seller or buyer cannot approve
+    ✔ rejection threshold closes the request; late votes are refused (81ms)
+
+  7. Role enforcement matrix
+    ✔ there is one role authority shared by every contract (101ms)
+    ✔ the default admin can only be changed by the two-step delayed process
+    grant a role
+      ✔ governance succeeds
+      ✔ registrar is rejected
+      ✔ laa is rejected
+      ✔ issuer is rejected
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer is rejected
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    revoke a role
+      ✔ governance succeeds
+      ✔ registrar is rejected
+      ✔ laa is rejected
+      ✔ issuer is rejected
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer is rejected
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    change approval thresholds
+      ✔ governance succeeds
+      ✔ registrar is rejected
+      ✔ laa is rejected
+      ✔ issuer is rejected
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer is rejected
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    submit registration for another person
+      ✔ governance is rejected
+      ✔ registrar succeeds
+      ✔ laa is rejected
+      ✔ issuer is rejected
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer is rejected
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    approve a request
+      ✔ governance is rejected
+      ✔ registrar is rejected
+      ✔ laa succeeds
+      ✔ issuer is rejected
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer is rejected
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    reject a request
+      ✔ governance is rejected
+      ✔ registrar is rejected
+      ✔ laa succeeds
+      ✔ issuer is rejected
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer is rejected
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    initiate transfer of alice's title
+      ✔ governance is rejected
+      ✔ registrar is rejected
+      ✔ laa is rejected
+      ✔ issuer is rejected
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer is rejected
+      ✔ alice succeeds
+      ✔ outsider is rejected
+    register an identity
+      ✔ governance is rejected
+      ✔ registrar is rejected
+      ✔ laa is rejected
+      ✔ issuer succeeds
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer is rejected
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    suspend an identity
+      ✔ governance is rejected
+      ✔ registrar is rejected
+      ✔ laa is rejected
+      ✔ issuer succeeds
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer is rejected
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    open a dispute
+      ✔ governance is rejected
+      ✔ registrar is rejected
+      ✔ laa is rejected
+      ✔ issuer is rejected
+      ✔ disputeOfficer succeeds
+      ✔ encOfficer is rejected
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    close a dispute
+      ✔ governance is rejected
+      ✔ registrar is rejected
+      ✔ laa is rejected
+      ✔ issuer is rejected
+      ✔ disputeOfficer succeeds
+      ✔ encOfficer is rejected
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    register an encumbrance
+      ✔ governance is rejected
+      ✔ registrar is rejected
+      ✔ laa is rejected
+      ✔ issuer is rejected
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer succeeds
+      ✔ alice is rejected
+      ✔ outsider is rejected
+    discharge an encumbrance
+      ✔ governance is rejected
+      ✔ registrar is rejected
+      ✔ laa is rejected
+      ✔ issuer is rejected
+      ✔ disputeOfficer is rejected
+      ✔ encOfficer succeeds
+      ✔ alice is rejected
+      ✔ outsider is rejected
+
+  8. Disputes and encumbrances govern transfers
+    ✔ an open dispute blocks transfer until it is lawfully resolved (76ms)
+    ✔ an active mortgage blocks transfer until discharged
+    ✔ an active lien blocks transfer until discharged
+    ✔ an active caveat blocks transfer until discharged
+    ✔ a servitude does not block transfer
+    ✔ a caveat lodged after submission defers execution; execute() succeeds after discharge
+    ✔ a dispute blocks first registration of a contested parcel
+    ✔ a suspended transferee identity defers execution (102ms)
+    ✔ state-change validation in the registries
+
+  9. Identity: no raw personal data on-chain
+    ✔ the identity ABI exposes no personal-data fields (76ms)
+    ✔ binds one pseudonymous subject to one wallet
+    ✔ suspension and revocation remove verified status; credential can be renewed
+
+  10. Governance parameters
+    ✔ thresholds must be at least 1
+    ✔ exposes the EIP-712 domain for off-line signers
+
+  11. Read-only views used by the dashboards
+    ✔ pages through requests (41ms)
+    ✔ exposes disputes and encumbrances by id
+    ✔ unknown requests and non-approved executions are refused
+
+
+  154 passing (2s)
+

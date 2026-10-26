@@ -1,5 +1,5 @@
 /**
- * Documents Registry page — cross-parcel IPFS-anchored document browser.
+ * Documents Registry page — cross-parcel browser for the encrypted document store.
  *
  * Fetches from GET /api/parcels/documents (aggregate of all parcel supportingDocs)
  * with type and district filters, pagination, and a copy-to-clipboard CID action.
@@ -304,14 +304,14 @@ export default function Documents() {
                                                 {doc.sizeKB ? t('documents.sizeKb').replace('{n}', doc.sizeKB) : '—'}
                                             </span>
                                         </td>
-                                        {/* IPFS CID */}
+                                        {/* keccak256 document hash */}
                                         <td className="px-4 py-3">
-                                            {doc.ipfsCid ? (
+                                            {doc.documentHash ? (
                                                 <span
                                                     className="font-mono text-label-sm text-on-surface-variant cursor-default"
-                                                    title={doc.ipfsCid}
+                                                    title={doc.documentHash}
                                                 >
-                                                    {truncateCid(doc.ipfsCid)}
+                                                    {truncateCid(doc.documentHash)}
                                                 </span>
                                             ) : (
                                                 <span className="font-public-sans text-body-sm text-on-surface-variant">—</span>
@@ -319,7 +319,7 @@ export default function Documents() {
                                         </td>
                                         {/* Status */}
                                         <td className="px-4 py-3">
-                                            <AnchorBadge cid={doc.ipfsCid} t={t} />
+                                            <AnchorBadge cid={doc.anchoredOnChain ? doc.documentHash : null} t={t} />
                                         </td>
                                     </tr>
                                 );

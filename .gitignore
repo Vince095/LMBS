@@ -38,3 +38,32 @@ Thumbs.db
 *.ntvs*
 *.njsproj
 *.sln
+
+# ── Blockchain workspace (generated) ─────────────────────────────────────────
+blockchain/node_modules
+blockchain/artifacts
+blockchain/cache
+blockchain/typechain-types
+blockchain/coverage
+blockchain/coverage.json
+blockchain/deployments
+blockchain/evidence
+blockchain/.env
+
+# ── Besu network: generated keys, genesis, chain data, logs (NEVER commit) ────
+network/generated/
+
+# ── Per-environment deployment addresses (written by `npm run deploy:*`) ─────
+backend/chain/deployment.*.json
+src/chain/generated/deployment.*.json
+
+# ── Encrypted off-chain document store (runtime data) ────────────────────────
+backend/storage/
+backend/coverage/
+
+# ── Archives ─────────────────────────────────────────────────────────────────
+*.zip
+e2e/node_modules
+
+# ── Claude working outputs (local only) ───────────────────────────────────────
+Claude outputs/

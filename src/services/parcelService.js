@@ -1,10 +1,11 @@
 /**
  * Parcel REST service — list, provenance, documents, GIS history, and the
- * legacy /api/titles upsert endpoint used by the Registration wizard.
+ * /api/titles endpoint that records metadata for an on-chain registration.
  */
 
 import { http } from './httpClient';
 import { ENDPOINTS } from '../config/api';
+import { uploadDocument } from '../chain/documents';
 
 function qs(params) {
     const entries = Object.entries(params).filter(function(e) { return e[1] != null && e[1] !== ''; });
@@ -33,11 +34,30 @@ export const parcelService = {
     gisHistory:     (pin)          => http.get(`${ENDPOINTS.parcels}/${encodeURIComponent(pin)}/gis-history`),
 
     /**
-     * Attach a supporting document to a parcel (POST /api/parcels/:pin/documents).
+     * Upload a supporting document for a parcel into the ENCRYPTED store
+     * (POST /api/documents). The file is AES-256-GCM encrypted server-side;
+     * the response carries `documentHash` (keccak256 of the plaintext), the
+     * value that is anchored on-chain by submitRegistration / submitTransfer.
      * @param {string} pin
-     * @param {{ type: string, name: string, ipfsCid?: string, sha256?: string, sizeKB?: number, uploadedBy?: string }} payload
+     * @param {File} file
+     * @param {string} type  document type (SURVEY_PLAN, DEED_OF_SALE, …)
      */
-    uploadDocument: (pin, payload) => http.post(`${ENDPOINTS.parcels}/${encodeURIComponent(pin)}/documents`, payload),
+    uploadDocument: (pin, file, type) => uploadDocument(file, { type: type || 'OTHER', parcelPin: pin }),
+
+    /** Download and decrypt a stored document (authorised), then open it. */
+    openDocument: async (docId, name) => {
+        const blob = await http.get(`${ENDPOINTS.documents}/${encodeURIComponent(docId)}`, { responseType: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+        if (name) a.download = name;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+    },
+
+    /** Re-hash the stored ciphertext's plaintext and compare with the on-chain hash. */
+    verifyDocument: (docId, onChainHash) =>
+        http.get(`${ENDPOINTS.documents}/${encodeURIComponent(docId)}/verify${qs({ onChainHash })}`),
 
     // Used by the Registration / Transfer wizard final step.
     register:  (payload) => http.post(ENDPOINTS.titles, payload),

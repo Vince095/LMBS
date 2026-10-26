@@ -26,8 +26,8 @@ export default function RegisterPage() {
             setError('Passwords do not match');
             return;
         }
-        if (form.password.length < 8) {
-            setError('Password must be at least 8 characters');
+        if (form.password.length < 10) {
+            setError('Password must be at least 10 characters');
             return;
         }
         setSubmitting(true);
@@ -71,11 +71,11 @@ export default function RegisterPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-stack-md">
                         <label className="flex flex-col gap-1">
                             <span className="font-public-sans text-body-sm font-medium text-on-surface">Password</span>
-                            <input className={inputCls} type="password" required minLength={8} value={form.password} onChange={set('password')} autoComplete="new-password" />
+                            <input className={inputCls} type="password" required minLength={10} value={form.password} onChange={set('password')} autoComplete="new-password" />
                         </label>
                         <label className="flex flex-col gap-1">
                             <span className="font-public-sans text-body-sm font-medium text-on-surface">Confirm password</span>
-                            <input className={inputCls} type="password" required minLength={8} value={form.confirm} onChange={set('confirm')} autoComplete="new-password" />
+                            <input className={inputCls} type="password" required minLength={10} value={form.confirm} onChange={set('confirm')} autoComplete="new-password" />
                         </label>
                     </div>
 

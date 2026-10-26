@@ -7,7 +7,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth';
 import { notificationService } from '../../services';
-import { useTranslation, LanguageSwitcher } from '../../i18n';
+import { useTranslation } from '../../i18n';
 
 function NotificationsBell() {
     const { user } = useAuth();
@@ -23,6 +23,7 @@ function NotificationsBell() {
             .catch(() => { /* silent */ });
     };
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [user && user.address]);
 
     useEffect(() => {
@@ -115,7 +116,7 @@ function UserMenu() {
                         <div className="font-public-sans text-body-sm text-on-surface-variant truncate">{user.email}</div>
                     </div>
                     {(user.role === 'ADMIN' || user.role === 'REGISTRY_OFFICER') && (
-                        <button onClick={() => { setOpen(false); navigate('/legacy/admin'); }} className="w-full text-left px-3 py-2 font-public-sans text-body-sm hover:bg-surface-container-low">
+                        <button onClick={() => { setOpen(false); navigate('/registry'); }} className="w-full text-left px-3 py-2 font-public-sans text-body-sm hover:bg-surface-container-low">
                             {t('govtech.topbar.operatorConsole')}
                         </button>
                     )}

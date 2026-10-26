@@ -486,8 +486,11 @@ export default function DisputeManagement() {
         } catch { /* non-critical */ }
     }, []);
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { load(1); setPage(1); }, [filterStatus, filterPin, filterMine]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { load(page); }, [page]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { loadOfficers(); }, []);
 
     function handleAction(type, dispute) {

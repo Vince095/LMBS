@@ -66,8 +66,9 @@ async function listForUser({ address, since, limit = 50 }) {
     return Notification.find(q).sort({ createdAt: -1 }).limit(limit);
 }
 
-async function markRead(id) {
-    return Notification.findByIdAndUpdate(id, {
+/** Marks a notification read, but only if it belongs to `recipientAddress`. */
+async function markRead(id, recipientAddress) {
+    return Notification.findOneAndUpdate({ _id: id, recipientAddress: String(recipientAddress || '').toLowerCase() }, {
         $set: { status: 'READ', readAt: new Date() },
     }, { new: true });
 }

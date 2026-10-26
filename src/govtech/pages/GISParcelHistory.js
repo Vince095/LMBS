@@ -29,20 +29,6 @@ import GoogleMap           from '../components/GoogleMap';
 ───────────────────────────────────────────────────────────────────────────── */
 const TABS = ['Explorer', 'Ledger Audit', 'Survey Data', 'System Config'];
 
-const EVENT_COLOR = {
-    PARCEL_REGISTERED:  '#0F172A',
-    BOUNDARY_UPDATED:   '#059669',
-    TITLE_ISSUED:       '#0284C7',
-    TITLE_AMENDED:      '#F59E0B',
-    TITLE_REVOKED:      '#DC2626',
-    TRANSFER_INITIATED: '#7C3AED',
-    TRANSFER_APPROVED:  '#0284C7',
-    TRANSFER_COMPLETED: '#059669',
-    TRANSFER_CANCELLED: '#475569',
-    DOCUMENT_ATTACHED:  '#0369A1',
-    AUDIT_EVENT:        '#475569',
-};
-
 /* ─────────────────────────────────────────────────────────────────────────────
    Helpers
 ───────────────────────────────────────────────────────────────────────────── */
@@ -276,7 +262,7 @@ function LedgerAuditTab({ events, loading, yearFilter, pin }) {
                             <td className="px-4 py-2.5">
                                 <div className="flex items-center gap-2">
                                     <span className="material-symbols-outlined text-[14px]"
-                                          style={{ color: EVENT_COLOR[e.eventType] || '#475569' }}>
+                                          style={{ color: e.eventColor || '#475569' }}>
                                         {e.eventIcon || 'radio_button_checked'}
                                     </span>
                                     <span className="font-public-sans text-xs font-semibold text-on-surface">{e.event}</span>

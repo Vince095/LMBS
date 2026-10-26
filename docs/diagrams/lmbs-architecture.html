@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LMBS Architecture</title>
+<style>
+  :root{
+    --ink:#0f172a; --muted:#475569; --line:#cbd5e1;
+    --l1:#eef6fd; --l1b:#7fb2df; --l1h:#1d4f86;
+    --l2:#eefaf1; --l2b:#7cc59a; --l2h:#16603a;
+    --l3:#f5f1fc; --l3b:#a58bd6; --l3h:#4b2a8a;
+    --l4:#fffaeb; --l4b:#e0bd5a; --l4h:#7a5a00;
+    --sec:#fdf0f0; --secb:#e39b9b; --sech:#a11d1d;
+    --plan:#f8fafc; --planb:#94a3b8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:#fff;color:var(--ink)}
+  body{font-family:Inter, "DejaVu Sans", sans-serif;font-size:12.5px;line-height:1.32}
+  #canvas{position:relative;width:1680px;padding:22px 24px 18px}
+  h1{font-family:"Bitstream Charter",Caladea,"DejaVu Serif",serif;font-size:27px;margin:0;text-align:center;letter-spacing:.1px}
+  .sub{text-align:center;color:var(--muted);font-size:12.5px;margin:6px 0 16px}
+  .sub b{color:var(--ink)}
+  .wrap{display:grid;grid-template-columns:1fr 292px;gap:18px}
+  .main{display:flex;flex-direction:column;gap:22px;padding-right:40px;padding-left:26px} /* right gutter for wallet→contract arrow */
+  .layer{border:2px solid;border-radius:12px;padding:10px 12px 12px;position:relative}
+  .lhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+  .lhead h2{font-family:"Bitstream Charter",Caladea,"DejaVu Serif",serif;font-size:19px;margin:0}
+  .tag{font-size:12px;font-weight:600;border:1.5px solid;border-radius:6px;padding:3px 9px;background:#fff}
+  .grid{display:grid;gap:10px}
+  .box{background:#fff;border:1.5px solid;border-radius:8px;padding:8px 10px;position:relative}
+  .box h3{font-size:13.5px;margin:0 0 4px;font-weight:700}
+  .box ul{margin:0;padding-left:15px}
+  .box li{margin:1px 0}
+  .box p{margin:0}
+  .mono{font-family:"DejaVu Sans Mono",monospace;font-size:11.5px}
+  .new{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.4px;color:#fff;background:#0f766e;border-radius:3px;padding:0 4px;margin-left:4px;vertical-align:1px}
+  .actors{border-color:var(--l1b);background:var(--l1)}
+  .actor{background:#fff;border:1.5px solid var(--l1b);border-radius:8px;text-align:center;padding:7px 4px;font-weight:600;font-size:12.5px}
+  .actor .ic{font-size:20px;display:block;line-height:1.1;margin-bottom:2px}
+  .L1{border-color:var(--l1b);background:var(--l1)} .L1 h2{color:var(--l1h)} .L1 .tag{border-color:var(--l1b);color:var(--l1h)} .L1 .box{border-color:var(--l1b)} .L1 .box h3{color:var(--l1h)}
+  .L2{border-color:var(--l2b);background:var(--l2)} .L2 h2{color:var(--l2h)} .L2 .tag{border-color:var(--l2b);color:var(--l2h)} .L2 .box{border-color:var(--l2b)} .L2 .box h3{color:var(--l2h)}
+  .L3{border-color:var(--l3b);background:var(--l3)} .L3 h2{color:var(--l3h)} .L3 .tag{border-color:var(--l3b);color:var(--l3h)}
+  .L4{border-color:var(--l4b);background:var(--l4)} .L4 h2{color:var(--l4h)} .L4 .tag{border-color:var(--l4b);color:var(--l4h)} .L4 .box{border-color:var(--l4b)} .L4 .box h3{color:var(--l4h)}
+  .panel{background:#fff;border:1.5px solid var(--l3b);border-radius:9px;padding:9px 10px}
+  .panel h3{margin:0 0 7px;font-size:14px;color:var(--l3h)}
+  .val{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+  .val div{border:1.3px solid var(--l3b);border-radius:6px;padding:5px 4px;text-align:center;font-size:11.5px;background:#fbf9ff}
+  .val b{display:block;font-size:12.5px}
+  .stats{margin-top:8px;border:1.3px dashed var(--l3b);border-radius:7px;padding:6px 8px;font-size:11.5px;color:#334155;display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px 10px}
+  .sc{border-radius:8px;padding:7px 8px;border:1.5px solid}
+  .sc h4{margin:0 0 5px;font-size:12.5px;text-align:center}
+  .sol{background:#fff;border:1.2px solid;border-radius:5px;padding:3px 6px;margin-top:4px;font-family:"DejaVu Sans Mono",monospace;font-size:11.5px;text-align:center;font-weight:600}
+  .sol small{display:block;font-family:Inter,sans-serif;font-weight:400;font-size:10.5px;color:var(--muted);text-align:center;margin-top:1px}
+  .acc{background:#e8f2fd;border-color:#7fb2df} .acc h4{color:#1d4f86} .acc .sol{border-color:#7fb2df}
+  .idn{background:#ecf8ef;border-color:#7cc59a} .idn h4{color:#16603a} .idn .sol{border-color:#7cc59a}
+  .con{background:#fff6e6;border-color:#e3b35f} .con h4{color:#8a5300} .con .sol{border-color:#e3b35f}
+  .reg{background:#fdeeee;border-color:#e08a8a} .reg h4{color:#9b1c1c}
+  .reg .sol{border-color:#e08a8a;font-size:12.5px}
+  .reg ul{margin:5px 0 0;padding-left:15px;font-size:11.8px}
+  .mech{background:#fffbea;border:1.5px solid #e9c46a;border-radius:9px;padding:8px 10px}
+  .mech h3{margin:0 0 6px;font-size:13.5px;color:#7a4b00}
+  .mbox{border-radius:6px;padding:5px 8px;font-size:11.8px;margin-top:5px;border:1.2px solid}
+  .life{background:#f0f7ff;border:1.5px solid #7fb2df;border-radius:9px;padding:8px 10px}
+  .life h3{margin:0 0 5px;font-size:13.5px;color:#1d4f86}
+  .life .mono{font-size:11.5px;line-height:1.45}
+  .chip{display:inline-block;font-family:"DejaVu Sans Mono",monospace;font-size:10.5px;background:#fff;border:1px solid #c7d2fe;border-radius:4px;padding:0 4px;margin:2px 2px 0 0}
+  .side{display:flex;flex-direction:column;gap:14px}
+  .sec{border:2px solid var(--secb);background:var(--sec);border-radius:12px;padding:12px 14px}
+  .sec h2{font-family:"Bitstream Charter",Caladea,"DejaVu Serif",serif;color:var(--sech);font-size:17px;margin:0 0 8px;text-align:center}
+  .sec ul{margin:0;padding-left:16px}
+  .sec li{margin:3.5px 0}
+  .sec .grp{font-weight:700;color:var(--sech);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;margin:9px 0 2px}
+  .plan{border:2px dashed var(--planb);background:var(--plan);border-radius:12px;padding:12px 14px}
+  .plan h2{font-family:"Bitstream Charter",Caladea,"DejaVu Serif",serif;font-size:16px;margin:0 0 6px;color:#334155;text-align:center}
+  .plan ul{margin:0;padding-left:16px;color:#334155}
+  .plan li{margin:3px 0}
+  .flow{border:1.5px solid #94a3b8;border-radius:12px;padding:10px 12px;background:#fff}
+  .flow h2{font-size:14px;margin:0 0 6px}
+  .flow ol{margin:0;padding-left:0;list-style:none}
+  .flow li{display:flex;gap:7px;margin:4px 0;align-items:flex-start}
+  .num{flex:0 0 auto;width:19px;height:19px;border-radius:50%;background:#0f172a;color:#fff;font-weight:700;font-size:11px;display:inline-flex;align-items:center;justify-content:center}
+  .badge{position:absolute;width:21px;height:21px;border-radius:50%;background:#0f172a;color:#fff;font-weight:700;font-size:11.5px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 0 0 1px #0f172a;z-index:5}
+  .foot{margin-top:14px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;border-top:1px solid var(--line);padding-top:9px;font-size:11.8px;color:#334155}
+  .legend{display:flex;gap:16px;align-items:center;white-space:nowrap}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:26px;height:0;border-top:2.2px solid #0f172a;display:inline-block}
+  .sw.d{border-top-style:dashed}
+  .sw.r{border-top-color:#9b1c1c}
+  .sw.g{border-top-color:#15803d}
+  svg#ov{position:absolute;left:0;top:0;pointer-events:none;z-index:4;overflow:visible}
+  .alabel{font:600 10.5px Inter,sans-serif;fill:#0f172a;paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<div id="canvas">
+  <h1>Implemented Prototype Architecture of the Land Management Blockchain System (LMBS)</h1>
+  <div class="sub">Four layers with cross-cutting security controls. <b>Solid boxes are implemented</b> in the prototype; the dashed box on the right lists planned work. Numbered badges <b>①–⑦</b> trace one registration end to end.</div>
+
+  <div class="wrap">
+    <div class="main">
+
+      <!-- Actors -->
+      <div class="layer actors" id="actors">
+        <div class="grid" style="grid-template-columns:150px repeat(8,1fr);align-items:stretch">
+          <div style="font-family:'Bitstream Charter',Caladea,serif;font-weight:700;font-size:17px;color:#1d4f86;align-self:center">Users / Institutional Actors</div>
+          <div class="actor"><span class="ic">👤</span>Applicant / Citizen</div>
+          <div class="actor"><span class="ic">🏠</span>Title Holder</div>
+          <div class="actor"><span class="ic">🗂️</span>Registrar</div>
+          <div class="actor"><span class="ic">🏛️</span>Institutional Approver</div>
+          <div class="actor"><span class="ic">🪪</span>Identity Issuer</div>
+          <div class="actor"><span class="ic">⚖️</span>Dispute Officer</div>
+          <div class="actor"><span class="ic">🏦</span>Encumbrance Officer</div>
+          <div class="actor"><span class="ic">⚙️</span>Administrator</div>
+        </div>
+      </div>
+
+      <!-- Layer 1 -->
+      <div class="layer L1" id="L1">
+        <div class="lhead"><h2>Layer 1 – User and Institutional Application Layer</h2><span class="tag">React.js web portal · English / Sesotho</span></div>
+        <div class="grid" style="grid-template-columns:repeat(5,1fr)">
+          <div class="box" id="wizard"><h3>Registration / Transfer Wizard</h3><ul><li>submit registration</li><li>submit transfer</li><li>upload documents (encrypted)</li><li>save / resume drafts</li></ul></div>
+          <div class="box" id="approvals"><h3>Institutional Approvals</h3><ul><li>approve / reject request</li><li>signed vote, offline (EIP-712)<span class="new">NEW</span></li><li>execute request</li></ul></div>
+          <div class="box" id="console"><h3>Blockchain Registry Console</h3><ul><li>titles and requests</li><li>disputes / encumbrances</li><li>identity status</li><li>cancel own request</li></ul></div>
+          <div class="box" id="verify"><h3>Title Verification &amp; Search<span class="new">NEW</span></h3><ul><li>certificate checked on-chain</li><li>parcel search</li><li>provenance timeline</li><li>network status</li></ul></div>
+          <div class="box" id="wallet"><h3>Wallet Panel</h3><ul><li>wallet linking (signature only)</li><li><b>user signs every on-chain tx</b></li><li>on-chain role display</li><li>no seed phrase or private key ever requested</li></ul></div>
+        </div>
+      </div>
+
+      <!-- Layer 2 -->
+      <div class="layer L2" id="L2">
+        <div class="lhead"><h2>Layer 2 – API, Security and Workflow Services Layer</h2><span class="tag">Node.js / Express backend · REST + JWT</span></div>
+        <div class="grid" style="grid-template-columns:repeat(4,1fr)">
+          <div class="box" id="docsec"><h3>Document Security</h3><p><span class="mono">keccak256</span> plaintext hash · AES-256-GCM encryption · key from server environment (<span class="mono">ENCRYPTION_KEY</span>)</p></div>
+          <div class="box" id="auth"><h3>Authentication &amp; RBAC</h3><p>JWT authentication · bcrypt password hashing · application roles enforced per route</p></div>
+          <div class="box" id="wver"><h3>Wallet Verification</h3><p>challenge → signature → nonce check → wallet bound to user account</p></div>
+          <div class="box" id="wf"><h3>Workflow / API Service</h3><p>request workflow, validation and business rules; off-chain records never change ownership</p></div>
+          <div class="box" id="bver"><h3>Blockchain Verification</h3><p>fetches tx receipt and checks the <span class="mono">RequestSubmitted</span> event; client-reported hashes are never trusted</p></div>
+          <div class="box" id="cert"><h3>Certificate &amp; Provenance<span class="new">NEW</span></h3><p>certificate valid only if <span class="mono">ownerOf()</span> and document hash match the chain · history built from read models</p></div>
+          <div class="box" id="ops"><h3>Audit, Notifications &amp; Network<span class="new">NEW</span></h3><p>audit log of every state-changing request · notifications (email/SMS stubbed) · Besu peer &amp; block status</p></div>
+          <div class="box" id="indexer"><h3>Blockchain Indexer</h3><p>polls LandRegistry, Dispute and Encumbrance events · idempotent · resumes from <span class="mono">chain_cursor</span></p></div>
+        </div>
+      </div>
+
+      <!-- Layer 3 -->
+      <div class="layer L3" id="L3">
+        <div class="lhead"><h2>Layer 3 – Permissioned Besu Blockchain and Smart Contract Layer</h2></div>
+        <div class="grid" style="grid-template-columns:400px 1fr;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="panel" id="besu">
+              <h3>⛓ Hyperledger Besu QBFT Network</h3>
+              <div class="val">
+                <div><b>Validator 1</b>Land Administration Authority</div>
+                <div><b>Validator 2</b>Dept. of Survey &amp; Physical Planning</div>
+                <div><b>Validator 3</b>Deeds Registry</div>
+                <div><b>Validator 4</b>Ministry of Local Government</div>
+              </div>
+              <div class="stats">
+                <span>Chain ID: 2026</span><span>Block period: 2 s</span><span>Validators: 4</span>
+                <span>QBFT quorum: 3</span><span>Fault tolerance: 1</span><span>Zero gas price</span>
+                <span style="grid-column:1/-1">Node + account allowlists · Besu 25.9.0 in Docker Compose</span>
+              </div>
+            </div>
+            <div class="mech" id="mech">
+              <h3>⚖ Two distinct mechanisms</h3>
+              <div class="mbox" style="background:#fff8db;border-color:#e9c46a"><b>Business approval:</b> M-of-N institutional approval in LandRegistry (default 3 approvals; 2 rejections close a request). Threshold snapshotted at submission.</div>
+              <div class="mbox" style="background:#eaf4ff;border-color:#7fb2df"><b>Blockchain consensus:</b> QBFT agreement among Besu validators (quorum 3 of 4).</div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="panel" style="padding-bottom:10px" id="contracts">
+              <h3 style="margin-bottom:8px">Smart Contracts <span style="font-weight:500;font-size:12px;color:#475569">· Solidity 0.8.24 · OpenZeppelin · Hardhat</span></h3>
+              <div class="grid" style="grid-template-columns:1.05fr .95fr 1.1fr 1.65fr;gap:9px;align-items:stretch">
+                <div class="sc acc" id="c-acc"><h4>Access &amp; Governance</h4>
+                  <div class="sol">RoleAuthority.sol<small>OpenZeppelin AccessControl</small></div>
+                  <div class="sol">Roles.sol<small>6 roles</small></div>
+                  <div class="sol">AuthorityGated.sol<span class="new">NEW</span><small>base contract: every check → <span class="mono">hasRole</span></small></div>
+                </div>
+                <div class="sc idn" id="c-id"><h4>Identity</h4>
+                  <div class="sol">IdentityRegistry.sol<small>register · status · isVerified</small></div>
+                  <div style="font-size:10.8px;color:#16603a;margin-top:6px;text-align:center"><span class="mono">credentialHash</span>, <span class="mono">issuerRef</span>: hooks for future VCs</div>
+                </div>
+                <div class="sc con" id="c-con"><h4>Land Constraints</h4>
+                  <div class="sol" id="c-dis">DisputeRegistry.sol<small>open / close dispute</small></div>
+                  <div class="sol" id="c-enc">EncumbranceRegistry.sol<small>register / discharge</small></div>
+                </div>
+                <div class="sc reg" id="c-reg"><h4>Core Land Registry</h4>
+                  <div class="sol" id="landreg">LandRegistry.sol<small>ERC-721 + EIP-712</small></div>
+                  <ul>
+                    <li>registration and transfer requests</li>
+                    <li>parcel reservation (no duplicate parcels)</li>
+                    <li>M-of-N approvals: transaction <i>or</i> signed vote (nonce, deadline, chain id)</li>
+                    <li><span class="mono">execute()</span> checks <span class="mono">executionBlocker()</span></li>
+                    <li>direct token transfer disabled: a title moves only via <span class="mono">execute()</span><span class="new">NEW</span></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="life" id="life">
+              <h3>⟳ Request lifecycle</h3>
+              <div class="grid" style="grid-template-columns:1fr 1fr;gap:6px 14px">
+                <div class="mono">PENDING → REJECTED<br>PENDING → CANCELLED<br>PENDING → APPROVED → EXECUTED</div>
+                <div style="font-size:11.8px">An approved request stays APPROVED while a blocker holds:<br>
+                  <span class="chip">OPEN_DISPUTE</span><span class="chip">BLOCKING_ENCUMBRANCE</span><span class="chip">PARTY_NOT_VERIFIED</span><span class="chip">OWNER_CHANGED</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Layer 4 -->
+      <div class="layer L4" id="L4">
+        <div class="lhead"><h2>Layer 4 – Off-Chain Evidence and Read-Model Layer</h2><span class="tag">Encrypted file store · MongoDB</span></div>
+        <div class="grid" style="grid-template-columns:1.05fr 1.2fr 1fr">
+          <div class="box" id="store"><h3>📄 Encrypted Document Store</h3><ul><li>supporting documents, AES-256-GCM on disk</li><li>plaintext <span class="mono">keccak256</span> anchored on-chain</li><li>verify endpoint re-checks the hash against the chain</li><li>download only for uploader or officer roles</li></ul></div>
+          <div class="box" id="rm"><h3>🗄 MongoDB Read Models <span style="font-weight:400;color:#7a5a00">(written only by the Indexer)</span></h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px" class="mono"><span>chain_requests</span><span>title_deeds</span><span>parcels</span><span>transfers</span><span>disputes</span><span>encumbrances</span><span>chain_cursor</span></div>
+            <p style="margin-top:4px;font-size:11.5px;color:#475569">The chain is the authority; these collections serve queries and dashboards.</p></div>
+          <div class="box" id="app"><h3>🗄 MongoDB Application Data</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px" class="mono"><span>users</span><span>documents</span><span>audit_log</span><span>notifications</span></div>
+            <p style="margin-top:4px;font-size:11.5px;color:#475569">accounts (bcrypt), document metadata, audit trail</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="side">
+      <div class="sec">
+        <h2>🛡 Cross-cutting Security &amp; Controls</h2>
+        <div class="grp">Identity &amp; access</div>
+        <ul>
+          <li>JWT + RBAC on every API route</li>
+          <li>bcrypt password hashing</li>
+          <li>wallet challenge–signature binding</li>
+          <li>on-chain RBAC via RoleAuthority</li>
+          <li>separation of duties between institutions</li>
+        </ul>
+        <div class="grp">Transaction integrity</div>
+        <ul>
+          <li>EIP-712 votes: nonce, deadline, chain id</li>
+          <li>tx receipts and events verified server-side</li>
+          <li>signing keys stay in the user's wallet</li>
+          <li>Besu node + account allowlists</li>
+        </ul>
+        <div class="grp">Data protection</div>
+        <ul>
+          <li>AES-256-GCM documents; only the hash goes on-chain</li>
+          <li>helmet headers, CORS allowlist; rate limiting on login and sign-up</li>
+          <li>audit log of state-changing requests (secrets redacted)</li>
+        </ul>
+      </div>
+
+      <div class="flow">
+        <h2>Registration flow</h2>
+        <ol>
+          <li><span class="num">1</span><span>Applicant uploads documents; backend encrypts them and returns the <span class="mono">keccak256</span> hash</span></li>
+          <li><span class="num">2</span><span>Applicant signs <span class="mono">submitRegistration</span> in their own wallet</span></li>
+          <li><span class="num">3</span><span>Backend verifies the receipt and <span class="mono">RequestSubmitted</span> event</span></li>
+          <li><span class="num">4</span><span>Institutions approve (transaction or signed EIP-712 vote)</span></li>
+          <li><span class="num">5</span><span><span class="mono">execute()</span> checks identity, disputes and encumbrances, then mints the ERC-721 title</span></li>
+          <li><span class="num">6</span><span>Indexer projects the events into MongoDB read models</span></li>
+          <li><span class="num">7</span><span>Certificate is verified against <span class="mono">ownerOf()</span> on-chain</span></li>
+        </ol>
+      </div>
+
+      <div class="plan">
+        <h2>Planned / out of scope</h2>
+        <ul>
+          <li>W3C verifiable credentials and DIDs</li>
+          <li>BBS+ selective disclosure, zero-knowledge proofs</li>
+          <li>KMS / HSM key management and key rotation</li>
+          <li>MongoDB client-side field encryption</li>
+          <li>live email / SMS gateways</li>
+          <li>GIS and cadastral system integration</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div><b>Legal note:</b> the ERC-721 title token is an internal digital record; legal ownership remains governed by national land law and the authorised land registration process. &nbsp;·&nbsp; <b>Tooling:</b> Hardhat contract tests, Jest backend tests, full-stack E2E script.</div>
+    <div class="legend">
+      <span><i class="sw"></i>call / data flow</span>
+      <span><i class="sw r"></i>user-signed transaction</span>
+      <span><i class="sw g"></i>on-chain events</span>
+      <span><i class="sw d"></i>constraint check</span>
+    </div>
+  </div>
+
+  <svg id="ov"></svg>
+</div>
+
+<script>
+const C = document.getElementById('canvas');
+const svg = document.getElementById('ov');
+const NS = 'http://www.w3.org/2000/svg';
+function rect(id){ const r=document.getElementById(id).getBoundingClientRect(), c=C.getBoundingClientRect(); return {l:r.left-c.left,t:r.top-c.top,r:r.right-c.left,b:r.bottom-c.top,cx:(r.left+r.right)/2-c.left,cy:(r.top+r.bottom)/2-c.top,w:r.width,h:r.height}; }
+svg.setAttribute('width', C.scrollWidth); svg.setAttribute('height', C.scrollHeight);
+const defs=document.createElementNS(NS,'defs'); svg.appendChild(defs);
+function marker(id,color){ const m=document.createElementNS(NS,'marker'); m.setAttribute('id',id); m.setAttribute('viewBox','0 0 10 10'); m.setAttribute('refX','9'); m.setAttribute('refY','5'); m.setAttribute('markerWidth','7'); m.setAttribute('markerHeight','7'); m.setAttribute('orient','auto-start-reverse'); const p=document.createElementNS(NS,'path'); p.setAttribute('d','M0,0 L10,5 L0,10 z'); p.setAttribute('fill',color); m.appendChild(p); defs.appendChild(m); }
+const COL={k:'#0f172a',r:'#9b1c1c',g:'#15803d',p:'#4b2a8a'};
+Object.entries(COL).forEach(([k,v])=>marker('m'+k,v));
+function path(pts,{c='k',dash=false,w=2,label,lx,ly,anchor='start',both=false}={}){
+  const p=document.createElementNS(NS,'path');
+  p.setAttribute('d','M'+pts.map(q=>q.join(',')).join(' L'));
+  p.setAttribute('fill','none'); p.setAttribute('stroke',COL[c]); p.setAttribute('stroke-width',w);
+  if(dash) p.setAttribute('stroke-dasharray','6 4');
+  p.setAttribute('marker-end','url(#m'+c+')'); if(both) p.setAttribute('marker-start','url(#m'+c+')');
+  svg.appendChild(p);
+  if(label){ const t=document.createElementNS(NS,'text'); t.setAttribute('x',lx); t.setAttribute('y',ly); t.setAttribute('class','alabel'); t.setAttribute('text-anchor',anchor); t.textContent=label; svg.appendChild(t); }
+}
+function badge(n,x,y){ const d=document.createElement('div'); d.className='badge'; d.textContent=n; d.style.left=(x-10.5)+'px'; d.style.top=(y-10.5)+'px'; C.appendChild(d); }
+
+const A=rect('actors'), L1=rect('L1'), L2=rect('L2'), L3=rect('L3'), L4=rect('L4');
+const M=document.querySelector('.main').getBoundingClientRect(), CC=C.getBoundingClientRect();
+const mainL=M.left-CC.left, mainR=M.right-CC.left;
+const redX=mainR-12, grnX=mainR-28, docX=mainL+13;
+const gap12=(L1.b+L2.t)/2, gap23=(L2.b+L3.t)/2, gap34=(L3.b+L4.t)/2;
+
+// actors → portal
+path([[A.cx-300,A.b],[A.cx-300,L1.t]]); path([[A.cx+300,A.b],[A.cx+300,L1.t]]);
+
+// Layer 1 → Layer 2 (REST)
+const wz=rect('wizard'), ap=rect('approvals'), cs=rect('console'), vf=rect('verify'), wl=rect('wallet');
+[wz,ap,cs,vf].forEach(b=>path([[b.cx,L1.b],[b.cx,L2.t]]));
+const t=document.createElementNS(NS,'text'); t.setAttribute('x',cs.cx+10); t.setAttribute('y',gap12+4); t.setAttribute('class','alabel'); t.textContent='REST / JSON + JWT'; svg.appendChild(t);
+badge('1', wz.cx, gap12); badge('4', ap.cx, gap12);
+
+// ② wallet → LandRegistry, outer right gutter (user-signed tx)
+const lr=rect('c-reg'), reg=rect('landreg');
+path([[wl.r,wl.cy],[redX,wl.cy],[redX,reg.cy],[lr.r,reg.cy]],{c:'r',w:2.4});
+const t2=document.createElementNS(NS,'text'); t2.setAttribute('x',redX-8); t2.setAttribute('y',gap12+4); t2.setAttribute('text-anchor','end'); t2.setAttribute('class','alabel'); t2.setAttribute('style','fill:#9b1c1c'); t2.textContent='user-signed tx: submit / approve / execute'; svg.appendChild(t2);
+badge('2', redX, gap23);
+
+// document security → encrypted store, left gutter
+const ds=rect('docsec'), st=rect('store');
+path([[ds.l,ds.cy],[docX,ds.cy],[docX,st.cy],[st.l,st.cy]]);
+const t3=document.createElementNS(NS,'text'); t3.setAttribute('x',docX+6); t3.setAttribute('y',gap34+4); t3.setAttribute('class','alabel'); t3.textContent='ciphertext + hash'; svg.appendChild(t3);
+
+// ③ blockchain verification → Besu (gap only)
+const bv=rect('bver');
+path([[bv.cx,bv.b],[bv.cx,L3.t]],{label:'read receipt + events (JSON-RPC)',lx:bv.cx+10,ly:gap23+4});
+badge('3', bv.cx, bv.b);
+
+// ⑤ constraint checks (dashed)
+const idb=rect('c-id'), dis=rect('c-dis'), enc=rect('c-enc'), acc=rect('c-acc'), con=rect('c-con');
+path([[con.r,dis.cy],[lr.l,dis.cy]],{c:'p',dash:true,w:1.8});
+path([[con.r,enc.cy],[lr.l,enc.cy]],{c:'p',dash:true,w:1.8});
+path([[idb.cx,idb.b-26],[idb.cx,lr.b-12],[lr.l,lr.b-12]],{c:'p',dash:true,w:1.8,label:'checked by executionBlocker()',lx:con.l+8,ly:lr.b-18});
+path([[acc.cx,acc.b],[acc.cx,lr.b+7],[lr.cx,lr.b+7],[lr.cx,lr.b]],{c:'p',dash:true,w:1.6,label:'hasRole()',lx:acc.cx+8,ly:lr.b+20});
+badge('5', lr.l, lr.t);
+
+// ⑥ on-chain events → Indexer (straight, through empty contracts heading), Indexer → read models (inner right gutter)
+const ix=rect('indexer'), rm=rect('rm');
+const ex=Math.max(Math.min(ix.cx, lr.r-30), lr.l+30);
+path([[ex,lr.t],[ex,ix.b]],{c:'g',w:2.2,label:'on-chain events',lx:ex-8,ly:gap23+4,anchor:'end'});
+badge('6', ex, (lr.t+L3.t)/2+18);
+path([[ix.r,ix.cy],[grnX,ix.cy],[grnX,gap34],[rm.cx,gap34],[rm.cx,rm.t]],{c:'g',w:2.2,label:'Indexer writes read models',lx:rm.cx+10,ly:gap34-5});
+
+// ⑦ certificate check
+const ce=rect('cert'); badge('7', ce.r-14, ce.t);
+</script>
+</body>
+</html>

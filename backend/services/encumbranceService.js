@@ -24,7 +24,7 @@ async function register(payload) {
 async function discharge(encumbranceId, dischargedBy) {
     const doc = await Encumbrance.findOneAndUpdate(
         { encumbranceId },
-        { $set: { status: 'DISCHARGED', dischargeDate: new Date() } },
+        { $set: { status: 'DISCHARGED', dischargeDate: new Date(), dischargedBy } },
         { new: true },
     );
 

@@ -14,7 +14,7 @@ const STATUSES = ['ACTIVE', 'DISCHARGED', 'EXPIRED'];
 const encumbranceSchema = new Schema({
     encumbranceId: { type: String, required: true, unique: true, index: true },
     parcelPin: { type: String, required: true, index: true },
-    tokenId: { type: Number, index: true },
+    tokenId: { type: String, index: true },
 
     type: { type: String, enum: TYPES, required: true },
     holder: {
@@ -28,6 +28,7 @@ const encumbranceSchema = new Schema({
     startDate: { type: Date, default: Date.now },
     expiryDate: Date,
     dischargeDate: Date,
+    dischargedBy: { type: String, lowercase: true },
 
     status: { type: String, enum: STATUSES, default: 'ACTIVE', index: true },
     description: String,

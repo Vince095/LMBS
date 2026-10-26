@@ -1,21 +1,34 @@
 /**
- * /api/auth - registration / login / logout / me / change-password.
+ * /api/auth — registration, login, and wallet linking.
  *
- * Login + register are public. /me + /change-password require a Bearer token.
+ * Public:     POST /register, POST /login   (rate-limited)
+ * Protected:  everything else
  */
 
 const express = require('express');
+const rateLimit = require('express-rate-limit');
+const env = require('../config/env');
 const ctl = require('../controllers/authController');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.post('/register', ctl.register);
-router.post('/login', ctl.login);
-router.post('/logout', ctl.logout);
+const credentialLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: env.authRateLimit,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many attempts, try again later' },
+});
 
-// Strict auth on the protected endpoints regardless of env.requireAuth.
-router.get('/me', authMiddleware({ required: true }), ctl.me);
-router.post('/change-password', authMiddleware({ required: true }), ctl.changePassword);
+router.post('/register', credentialLimiter, ctl.register);
+router.post('/login', credentialLimiter, ctl.login);
+
+router.use(authMiddleware({ required: true }));
+router.post('/logout', ctl.logout);
+router.get('/me', ctl.me);
+router.post('/change-password', ctl.changePassword);
+router.post('/wallet/challenge', ctl.walletChallenge);
+router.post('/wallet/verify', ctl.walletVerify);
 
 module.exports = router;

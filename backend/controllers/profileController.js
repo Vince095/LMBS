@@ -1,9 +1,6 @@
 /**
- * Profile controller — backwards-compatible with the legacy /api/profiles
- * routes while persisting through the new User Mongoose model.
- *
- * Also provides self-service profile update (PUT /api/profiles/me) for
- * authenticated users who want to edit their own profile.
+ * Profile controller — reads and self-service updates (PUT /api/profiles/me)
+ * of OFF-CHAIN user profiles. Personal data never goes on-chain.
  */
 
 const { User } = require('../models');
@@ -11,31 +8,6 @@ const { HttpError } = require('../middleware/error');
 
 // Fields a citizen/officer may edit on their own profile (not role or isActive)
 const SELF_EDIT_FIELDS = ['name', 'email', 'phone', 'physicalAddress', 'district', 'preferredLanguage', 'lnid'];
-
-async function store(req, res, next) {
-    try {
-        const { address, name, email, phone, physicalAddress, dateOfBirth, role, district, lnid, preferredLanguage } = req.body;
-        if (!address || !name) throw new HttpError(400, 'address and name are required');
-
-        const callerRole = (req.user && req.user.role) || 'CITIZEN';
-        const update = {
-            address: address.toLowerCase(),
-            name, email, phone, physicalAddress, dateOfBirth,
-        };
-        // Only ADMIN may set role via /profiles/store
-        if (role && callerRole === 'ADMIN') update.role = role;
-        if (district)         update.district = district;
-        if (lnid)             update.lnid = lnid;
-        if (preferredLanguage) update.preferredLanguage = preferredLanguage;
-
-        const user = await User.findOneAndUpdate(
-            { address: address.toLowerCase() },
-            { $set: update },
-            { upsert: true, new: true, setDefaultsOnInsert: true },
-        );
-        res.json({ success: true, user });
-    } catch (err) { next(err); }
-}
 
 /**
  * GET /api/profiles/me
@@ -61,11 +33,9 @@ async function updateMe(req, res, next) {
         SELF_EDIT_FIELDS.forEach(function(f) {
             if (req.body[f] !== undefined) update[f] = req.body[f];
         });
-        const user = await User.findByIdAndUpdate(
-            req.user.id,
-            { $set: update },
-            { new: true, runValidators: true }
-        ).select('-passwordHash -__v');
+        let matched = (await User.updateOne({ _id: req.user.id }, { $set: update }, { runValidators: true })).matchedCount;
+        // Re-read with the projection (portable across MongoDB-compatible servers).
+        let user = matched ? await User.findById(req.user.id).select('-passwordHash -__v') : null;
         if (!user) throw new HttpError(404, 'Profile not found');
         res.json({ success: true, user });
     } catch (err) { next(err); }
@@ -87,4 +57,4 @@ async function listAll(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { store, get, listAll, getMe, updateMe };
+module.exports = { get, listAll, getMe, updateMe };

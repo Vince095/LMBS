@@ -1,366 +1,427 @@
 /**
- * Provenance service — feeds Property Details, Transaction History, and the
+ * Provenance service — feeds Property Details, Transaction History and the
  * GIS Parcel History screens.
  *
- * Composes a parcel's full event ledger by merging on-chain chaincode events
- * projected into MongoDB (SAD section 5.5):
+ * A parcel's history is assembled ONLY from read models that the chain
+ * indexer (services/indexerService.js) projects from Besu events, plus the
+ * encrypted document store's metadata:
  *
- *   SAD chaincode events mapped (SAD section 4.4):
- *     LandParcelCC  → CreateParcel      → PARCEL_REGISTERED
- *                  → UpdateParcel      → BOUNDARY_UPDATED
- *     TitleDeedCC   → IssueDeed         → TITLE_ISSUED
- *                  → AmendDeed         → TITLE_AMENDED
- *                  → RevokeDeed        → TITLE_REVOKED
- *     TransferCC    → InitiateTransfer  → TRANSFER_INITIATED
- *                  → ApproveTransfer   → TRANSFER_APPROVED
- *                  → CompleteTransfer  → TRANSFER_COMPLETED
- *                  → CancelTransfer    → TRANSFER_CANCELLED
- *     LandTitleExtensions → SupportingDocAttached → DOCUMENT_ATTACHED
- *     AuditCC       → LogEvent          → AUDIT_EVENT
+ *   chain_requests  ← LandRegistry: RequestSubmitted, DecisionRecorded,
+ *                     RequestApproved, ExecutionDeferred, RequestExecuted,
+ *                     RequestRejected, RequestCancelled
+ *   disputes        ← DisputeRegistry (openDispute / closeDispute)
+ *   encumbrances    ← EncumbranceRegistry (register / discharge)
+ *   documents       ← encrypted document store (keccak256 hash anchored
+ *                     on-chain through submitRegistration / submitTransfer)
  *
- * IMPORTANT: EncumbranceCC and DisputeCC events are NOT surfaced here.
- *            Encumbrances and disputes are not handled in this release.
- *
- * Also exposes:
- *   uploadDocument(pin, docData)  — add a supporting doc to a parcel
- *   documents(pin)                — IPFS-anchored supporting docs for a parcel
- *   gisHistory(pin)               — coarser timeline events for the satellite view
+ * Event timestamps are the mined block's time, stored by the indexer. For rows
+ * indexed before it stored them, the block is looked up (bounded by a short
+ * timeout); failing that the read model's own timestamps are used.
+ * Nothing here invents a transaction hash: `txId` is a real Besu transaction
+ * hash or null.
  */
 
-const { Parcel, Transfer, AuditLog, TitleDeed } = require('../models');
+const models = require('../models');
+const chain = require('./chainService');
 
 // ─── Event type registry ────────────────────────────────────────────────────
-// Maps the canonical event type string (stored in MongoDB / emitted by
-// the Blockchain Event Listener) to display metadata.
 const EVENT_META = {
-    // Land Parcel Chaincode (LandParcelCC)
-    'PARCEL_REGISTERED':  { label: 'Parcel Registered',  color: '#0F172A', icon: 'add_location_alt'  },
-    'BOUNDARY_UPDATED':   { label: 'Boundary Re-survey', color: '#059669', icon: 'edit_location_alt' },
+    REGISTRATION_SUBMITTED: { label: 'Registration Submitted', color: '#0F172A', icon: 'add_location_alt' },
+    TRANSFER_INITIATED:     { label: 'Transfer Initiated',     color: '#7C3AED', icon: 'swap_horiz' },
+    APPROVAL_RECORDED:      { label: 'Approval Recorded',      color: '#0284C7', icon: 'how_to_vote' },
+    REJECTION_RECORDED:     { label: 'Rejection Recorded',     color: '#DC2626', icon: 'thumb_down' },
+    TRANSFER_APPROVED:      { label: 'Request Approved',       color: '#0284C7', icon: 'verified' },
+    EXECUTION_DEFERRED:     { label: 'Execution Blocked',      color: '#B45309', icon: 'block' },
+    TITLE_ISSUED:           { label: 'Title Issued',           color: '#0284C7', icon: 'workspace_premium' },
+    TRANSFER_COMPLETED:     { label: 'Title Transfer',         color: '#059669', icon: 'check_circle' },
+    REQUEST_REJECTED:       { label: 'Request Rejected',       color: '#DC2626', icon: 'cancel' },
+    TRANSFER_CANCELLED:     { label: 'Request Cancelled',      color: '#475569', icon: 'cancel' },
+    DISPUTE_OPENED:         { label: 'Dispute Opened',         color: '#B91C1C', icon: 'gavel' },
+    DISPUTE_CLOSED:         { label: 'Dispute Closed',         color: '#475569', icon: 'gavel' },
+    ENCUMBRANCE_REGISTERED: { label: 'Encumbrance Registered', color: '#B45309', icon: 'account_balance' },
+    ENCUMBRANCE_DISCHARGED: { label: 'Encumbrance Discharged', color: '#059669', icon: 'account_balance' },
+    DOCUMENT_ATTACHED:      { label: 'Document Attached',      color: '#0369A1', icon: 'attach_file' },
+};
 
-    // Title Deed Chaincode (TitleDeedCC)
-    'TITLE_ISSUED':       { label: 'Title Issued',        color: '#0284C7', icon: 'workspace_premium' },
-    'TITLE_AMENDED':      { label: 'Title Amendment',     color: '#F59E0B', icon: 'contract_edit'     },
-    'TITLE_REVOKED':      { label: 'Title Revoked',       color: '#DC2626', icon: 'cancel'            },
-
-    // Transfer Chaincode (TransferCC)
-    'TRANSFER_INITIATED': { label: 'Transfer Initiated',  color: '#7C3AED', icon: 'swap_horiz'        },
-    'TRANSFER_APPROVED':  { label: 'Transfer Approved',   color: '#0284C7', icon: 'verified'          },
-    'TRANSFER_COMPLETED': { label: 'Title Transfer',      color: '#059669', icon: 'check_circle'      },
-    'TRANSFER_CANCELLED': { label: 'Transfer Cancelled',  color: '#475569', icon: 'cancel'            },
-
-    // Document events (LandTitleExtensions SupportingDocAttached)
-    'DOCUMENT_ATTACHED':  { label: 'Document Attached',   color: '#0369A1', icon: 'attach_file'       },
-
-    // Legacy / migration events
-    'LEGACY_DIGITISATION':{ label: 'Legacy Digitisation', color: '#475569', icon: 'history'           },
-
-    // Audit / system (AuditCC LogEvent)
-    'AUDIT_EVENT':        { label: 'Audit Event',         color: '#475569', icon: 'policy'            },
+const BLOCKER_LABEL = {
+    OPEN_DISPUTE: 'open dispute on the parcel',
+    BLOCKING_ENCUMBRANCE: 'blocking encumbrance on the parcel',
+    PARTY_NOT_VERIFIED: 'a party is not identity-verified',
+    OWNER_CHANGED: 'the title owner changed after submission',
 };
 
 function eventMeta(type) {
-    return EVENT_META[type] || { label: type || 'System Event', color: '#475569', icon: 'info' };
+    return EVENT_META[type] || { label: type || 'Event', color: '#475569', icon: 'info' };
 }
 
 // ─── Document type display names ────────────────────────────────────────────
 const DOC_LABELS = {
-    SURVEY_PLAN:        'Survey Plan',
-    ENV_ASSESSMENT:     'Environmental Assessment',
-    DEED_OF_SALE:       'Deed of Sale',
-    TITLE_DEED:         'Title Deed Certificate',
-    COURT_ORDER:        'Court Order',
-    ID_DOCUMENT:        'Identity Document',
-    POWER_OF_ATTORNEY:  'Power of Attorney',
-    OTHER:              'Supporting Document',
+    SURVEY_PLAN: 'Survey Plan',
+    ENV_ASSESSMENT: 'Environmental Assessment',
+    DEED_OF_SALE: 'Deed of Sale',
+    TITLE_DEED: 'Title Deed Certificate',
+    COURT_ORDER: 'Court Order',
+    ID_DOCUMENT: 'Identity Document',
+    POWER_OF_ATTORNEY: 'Power of Attorney',
+    OTHER: 'Supporting Document',
 };
 
 function docLabel(type) {
     return DOC_LABELS[type] || 'Supporting Document';
 }
 
-// ─── history ─────────────────────────────────────────────────────────────────
-async function history(pin, { limit = 50 } = {}) {
-    // NOTE: Encumbrances and disputes are NOT included — not handled in this release.
-    const [parcel, transfers, auditEntries, deed] = await Promise.all([
-        Parcel.findOne({ pin }).lean(),
-        Transfer.find({ parcelPin: pin }).sort({ createdAt: -1 }).lean(),
-        AuditLog.find({
-            resourceType: 'titles',
-            resourceId:   pin,
-            // Only surface canonical chain events — exclude BULK_IMPORT, DRAFT saves, etc.
-            action: { $in: Object.keys(EVENT_META) },
-        }).sort({ timestamp: -1 }).limit(20).lean(),
-        TitleDeed.findOne({ parcelPin: pin }).lean(),
+function shortHash(h) {
+    return h ? `${h.slice(0, 6)}…${h.slice(-6)}` : '—';
+}
+
+function shortAddr(a) {
+    return a ? `${a.slice(0, 6)}…${a.slice(-4)}` : null;
+}
+
+function makeEvent(type, fields) {
+    const meta = eventMeta(type);
+    return {
+        eventType: type,
+        event: meta.label,
+        eventColor: meta.color,
+        eventIcon: meta.icon,
+        hash: shortHash(fields.txId),
+        ...fields,
+    };
+}
+
+// ─── Block timestamps for rows indexed without one ──────────────────────────
+const BLOCK_TIME_TIMEOUT_MS = 3000;
+
+async function blockTimes(blockNumbers, deps) {
+    const out = new Map();
+    const c = deps.chain;
+    if (!c || !c.isConfigured || !c.isConfigured()) return out;
+    const unique = [...new Set(blockNumbers.filter((n) => Number.isInteger(n)))].slice(0, 100);
+    if (!unique.length) return out;
+    let timer;
+    try {
+        const provider = c.getProvider();
+        const lookups = Promise.all(unique.map((n) => provider.getBlock(n).catch(() => null)));
+        const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(null), BLOCK_TIME_TIMEOUT_MS); });
+        const blocks = await Promise.race([lookups, timeout]);
+        (blocks || []).forEach((b, i) => { if (b && b.timestamp) out.set(unique[i], new Date(Number(b.timestamp) * 1000)); });
+    } catch {
+        /* chain unreachable: fall back to read-model timestamps */
+    } finally {
+        clearTimeout(timer);
+    }
+    return out;
+}
+
+// ─── On-chain anchoring of stored documents ─────────────────────────────────
+/**
+ * Map documentHash → requestId for every hash committed on-chain, either
+ * directly as a request's documentHash or as a member of an anchored manifest.
+ * `manifests` are stored documents carrying `members`.
+ */
+function anchorIndex(requests, manifests) {
+    const byHash = new Map();
+    requests.forEach((r) => { if (r.documentHash) byHash.set(String(r.documentHash).toLowerCase(), r.requestId); });
+    manifests.forEach((mf) => {
+        const rid = byHash.get(String(mf.documentHash || '').toLowerCase());
+        if (rid === undefined) return;
+        (mf.members || []).forEach((h) => { if (!byHash.has(h)) byHash.set(String(h).toLowerCase(), rid); });
+    });
+    return byHash;
+}
+
+// ─── Name resolution for wallet addresses ───────────────────────────────────
+async function nameMap(addresses, m) {
+    const list = [...new Set(addresses.filter(Boolean).map((a) => a.toLowerCase()))];
+    const map = new Map();
+    if (!list.length || !m.User) return map;
+    const users = await m.User.find({ address: { $in: list } }).select('address name').lean();
+    users.forEach((u) => map.set(u.address, u.name));
+    return map;
+}
+
+// ─── history ────────────────────────────────────────────────────────────────
+async function history(pin, { limit = 50 } = {}, deps = { models, chain }) {
+    const m = deps.models;
+    const [parcel, deed] = await Promise.all([
+        m.Parcel.findOne({ pin }).lean(),
+        m.TitleDeed.findOne({ parcelPin: pin }).sort({ createdAt: -1 }).lean(),
     ]);
 
-    // DRAFT parcels have not been submitted to the chain — nothing to show.
-    if (parcel && parcel.status === 'DRAFT') {
-        return { parcel, deed: null, events: [], total: 0 };
+    // Draft parcels have not been submitted on-chain.
+    if (!parcel || parcel.status === 'DRAFT') {
+        return { parcel: parcel || null, deed: null, events: [], total: 0 };
     }
+
+    const or = [{ parcelNumber: pin }];
+    if (parcel.parcelKey) or.push({ parcelKey: parcel.parcelKey });
+    const tokenId = parcel.tokenId || (deed && deed.tokenId);
+    if (tokenId) or.push({ tokenId: String(tokenId) });
+    if (parcel.chainRequestId !== undefined && parcel.chainRequestId !== null) or.push({ requestId: Number(parcel.chainRequestId) });
+
+    const [requests, disputes, encumbrances, docs] = await Promise.all([
+        m.ChainRequest.find({ $or: or }).sort({ requestId: 1 }).lean(),
+        m.Dispute.find({ parcelPin: pin }).lean(),
+        m.Encumbrance.find({ parcelPin: pin }).lean(),
+        m.StoredDocument.find({ parcelPin: pin }).lean(),
+    ]);
+
+    // Only blocks whose time the indexer did not store need a chain lookup.
+    const blocks = [];
+    requests.forEach((r) => {
+        if (!r.submittedAt) blocks.push(r.submittedBlock);
+        if (!r.executedAt) blocks.push(r.executedBlock);
+        (r.decisions || []).forEach((d) => { if (!d.at) blocks.push(d.blockNumber); });
+    });
+    const addresses = [
+        ...requests.flatMap((r) => [r.submitter, r.from, r.to, ...(r.decisions || []).map((d) => d.approver)]),
+        ...disputes.map((d) => d.filerAddress),
+        ...encumbrances.map((e) => e.dischargedBy),
+        ...docs.map((d) => d.uploadedBy && d.uploadedBy.address),
+    ];
+    const [times, names] = await Promise.all([blockTimes(blocks, deps), nameMap(addresses, m)]);
+    const at = (block, stored, fallback) => stored || times.get(block) || fallback || null;
+    const who = (addr) => (addr && names.get(addr.toLowerCase())) || shortAddr(addr) || 'Unknown';
 
     const events = [];
 
-    // ── Parcel registration (LandParcelCC → CreateParcel) ────────────────────
-    if (parcel) {
-        const meta = eventMeta('PARCEL_REGISTERED');
-        events.push({
-            id:           `reg:${parcel._id}`,
-            date:         parcel.createdAt,
-            eventType:    'PARCEL_REGISTERED',
-            event:        meta.label,
-            eventColor:   meta.color,
-            eventIcon:    meta.icon,
-            principal:    parcel.registeredBy?.name || 'Registry Officer',
-            principalSub: parcel.registeredBy?.orgId || 'LAA',
-            txId:         parcel.blockchainTxId,
-            hash:         parcel.blockchainTxId
-                ? `${parcel.blockchainTxId.slice(0, 6)}…${parcel.blockchainTxId.slice(-6)}`
-                : '—',
-            status: 'verified',
-        });
-    }
+    requests.forEach((r) => {
+        const isReg = r.kind === 'REGISTRATION';
+        const rid = r.requestId;
+        const sub = `Request #${rid}`;
 
-    // ── Title deed issued / amended / revoked (TitleDeedCC) ──────────────────
-    if (deed) {
-        const issueMeta = eventMeta('TITLE_ISSUED');
-        events.push({
-            id:           `deed:${deed._id}:issued`,
-            date:         deed.issuedAt || deed.createdAt,
-            eventType:    'TITLE_ISSUED',
-            event:        issueMeta.label,
-            eventColor:   issueMeta.color,
-            eventIcon:    issueMeta.icon,
-            principal:    (deed.issuedBy && typeof deed.issuedBy === 'object' ? deed.issuedBy.name : deed.issuedBy) || 'Registry Officer',
-            principalSub: `Deed No. ${deed.deedNumber || '—'}`,
-            txId:         deed.blockchainTxId,
-            hash:         deed.blockchainTxId
-                ? `${deed.blockchainTxId.slice(0, 6)}…${deed.blockchainTxId.slice(-6)}`
-                : '—',
-            status: deed.status === 'REVOKED' ? 'revoked' : 'verified',
+        events.push(makeEvent(isReg ? 'REGISTRATION_SUBMITTED' : 'TRANSFER_INITIATED', {
+            id: `req:${rid}:submitted`,
+            date: at(r.submittedBlock, r.submittedAt, r.createdAt),
+            principal: who(r.submitter),
+            principalSub: isReg ? `${sub} · for ${who(r.to)}` : `${sub} · ${who(r.from)} → ${who(r.to)}`,
+            txId: r.submittedTx || null,
+            blockNumber: r.submittedBlock || null,
+            documentHash: r.documentHash || null,
+            requestId: rid,
+            status: r.status === 'PENDING' ? 'pending' : 'verified',
+        }));
+
+        (r.decisions || []).forEach((d, i) => {
+            const approve = d.decision === 'APPROVE';
+            events.push(makeEvent(approve ? 'APPROVAL_RECORDED' : 'REJECTION_RECORDED', {
+                id: `req:${rid}:decision:${i}`,
+                date: at(d.blockNumber, d.at, r.updatedAt),
+                principal: who(d.approver),
+                principalSub: `${sub}${d.viaSignature ? ' · EIP-712 signed vote (relayed)' : ''}`,
+                txId: d.txHash || null,
+                blockNumber: d.blockNumber || null,
+                requestId: rid,
+                status: 'verified',
+            }));
         });
 
-        if (deed.amendments && deed.amendments.length) {
-            deed.amendments.forEach((a, i) => {
-                const aMeta = eventMeta('TITLE_AMENDED');
-                events.push({
-                    id:           `deed:${deed._id}:amend:${i}`,
-                    date:         a.amendedAt,
-                    eventType:    'TITLE_AMENDED',
-                    event:        aMeta.label,
-                    eventColor:   aMeta.color,
-                    eventIcon:    aMeta.icon,
-                    principal:    a.amendedBy || 'Registry Officer',
-                    principalSub: a.reason    || null,
-                    txId:         a.blockchainTxId,
-                    hash:         a.blockchainTxId
-                        ? `${a.blockchainTxId.slice(0, 6)}…${a.blockchainTxId.slice(-6)}`
-                        : '—',
-                    status: 'verified',
-                });
-            });
-        }
-
-        const rev = deed.revocation || {};
-        if (deed.status === 'REVOKED' && (rev.revokedAt || deed.revokedAt)) {
-            const rMeta = eventMeta('TITLE_REVOKED');
-            events.push({
-                id:           `deed:${deed._id}:revoked`,
-                date:         rev.revokedAt || deed.revokedAt,
-                eventType:    'TITLE_REVOKED',
-                event:        rMeta.label,
-                eventColor:   rMeta.color,
-                eventIcon:    rMeta.icon,
-                principal:    rev.revokedBy    || deed.revokedBy    || 'Registry Officer',
-                principalSub: rev.reason       || deed.revocationReason || null,
-                hash:         '—',
-                status: 'revoked',
-            });
-        }
-    }
-
-    // ── Transfers (TransferCC) ────────────────────────────────────────────────
-    transfers.forEach((t) => {
-        // Initiation event
-        if (t.createdAt) {
-            const iMeta = eventMeta('TRANSFER_INITIATED');
-            events.push({
-                id:           `transfer:${t.transferId}:initiated`,
-                date:         t.createdAt,
-                eventType:    'TRANSFER_INITIATED',
-                event:        iMeta.label,
-                eventColor:   iMeta.color,
-                eventIcon:    iMeta.icon,
-                principal:    t.fromOwner?.fullName || 'Current Owner',
-                principalSub: `to ${t.toOwner?.fullName || 'New Owner'}`,
-                txId:         t.initTxId || t.blockchainTxId,
-                hash:         (t.initTxId || t.blockchainTxId)
-                    ? `${(t.initTxId || t.blockchainTxId).slice(0, 6)}…${(t.initTxId || t.blockchainTxId).slice(-6)}`
-                    : '—',
+        if (r.status === 'APPROVED' && r.blocker && r.blocker !== 'NONE') {
+            events.push(makeEvent('EXECUTION_DEFERRED', {
+                id: `req:${rid}:deferred`,
+                date: r.updatedAt || null,
+                principal: 'LandRegistry',
+                principalSub: `${sub} · ${BLOCKER_LABEL[r.blocker] || r.blocker}`,
+                txId: null,
+                requestId: rid,
+                blocker: r.blocker,
                 status: 'pending',
-            });
+            }));
+        } else if (r.status === 'APPROVED') {
+            events.push(makeEvent('TRANSFER_APPROVED', {
+                id: `req:${rid}:approved`,
+                date: r.updatedAt || null,
+                principal: 'LandRegistry',
+                principalSub: `${sub} · ${r.approvals}/${r.threshold} approvals, awaiting execute()`,
+                txId: null,
+                requestId: rid,
+                status: 'pending',
+            }));
         }
 
-        // Completion or cancellation event
-        const finalType = t.status === 'COMPLETE'  ? 'TRANSFER_COMPLETED'
-                        : t.status === 'CANCELLED' ? 'TRANSFER_CANCELLED'
-                        : null;
-        if (finalType && (t.updatedAt || t.completedAt)) {
-            const fMeta = eventMeta(finalType);
-            events.push({
-                id:           `transfer:${t.transferId}:final`,
-                date:         t.completedAt || t.updatedAt,
-                eventType:    finalType,
-                event:        fMeta.label,
-                eventColor:   fMeta.color,
-                eventIcon:    fMeta.icon,
-                principal:    finalType === 'TRANSFER_COMPLETED'
-                    ? (t.toOwner?.fullName   || 'New Owner')
-                    : (t.cancelledBy         || 'Party'),
-                principalSub: finalType === 'TRANSFER_COMPLETED'
-                    ? (t.fromOwner?.fullName ? `from ${t.fromOwner.fullName}` : null)
-                    : null,
-                txId:         t.blockchainTxId,
-                hash:         t.blockchainTxId
-                    ? `${t.blockchainTxId.slice(0, 6)}…${t.blockchainTxId.slice(-6)}`
-                    : '—',
-                status:           finalType === 'TRANSFER_COMPLETED' ? 'verified' : 'cancelled',
-                considerationLSL: t.considerationLSL,
-                stampDutyLSL:     t.stampDutyLSL,
-            });
+        if (r.status === 'EXECUTED') {
+            events.push(makeEvent(isReg ? 'TITLE_ISSUED' : 'TRANSFER_COMPLETED', {
+                id: `req:${rid}:executed`,
+                date: at(r.executedBlock, r.executedAt, r.updatedAt),
+                principal: who(r.to),
+                principalSub: isReg
+                    ? `${sub} · ERC-721 title #${r.tokenId}${deed && deed.deedNumber ? ` · Deed ${deed.deedNumber}` : ''}`
+                    : `${sub} · from ${who(r.from)}`,
+                txId: r.executedTx || null,
+                blockNumber: r.executedBlock || null,
+                requestId: rid,
+                status: 'verified',
+            }));
+        } else if (r.status === 'REJECTED' || r.status === 'CANCELLED') {
+            events.push(makeEvent(r.status === 'REJECTED' ? 'REQUEST_REJECTED' : 'TRANSFER_CANCELLED', {
+                id: `req:${rid}:closed`,
+                date: r.updatedAt || null,
+                principal: r.status === 'REJECTED' ? 'Approving institutions' : who(r.submitter),
+                principalSub: `${sub} · ${r.rejections || 0} rejection(s)`,
+                txId: r.closedTx || null,
+                requestId: rid,
+                status: r.status === 'REJECTED' ? 'revoked' : 'cancelled',
+            }));
         }
     });
 
-    // ── Supporting documents attached (LandTitleExtensions) ──────────────────
-    if (parcel && parcel.supportingDocs && parcel.supportingDocs.length) {
-        parcel.supportingDocs.forEach((d, i) => {
-            if (d.uploadedAt) {
-                const dMeta = eventMeta('DOCUMENT_ATTACHED');
-                events.push({
-                    id:           `doc:${parcel._id}:${i}`,
-                    date:         d.uploadedAt,
-                    eventType:    'DOCUMENT_ATTACHED',
-                    event:        dMeta.label,
-                    eventColor:   dMeta.color,
-                    eventIcon:    dMeta.icon,
-                    principal:    d.uploadedBy || 'Registry Officer',
-                    principalSub: docLabel(d.type) + (d.name ? ` — ${d.name}` : ''),
-                    txId:         d.ipfsCid ? `ipfs:${d.ipfsCid.slice(0, 12)}…` : null,
-                    hash:         d.ipfsCid ? `ipfs:${d.ipfsCid.slice(0, 8)}…` : '—',
-                    status: 'verified',
-                    ipfsCid: d.ipfsCid,
-                });
-            }
-        });
-    }
-
-    // ── Audit-log entries (AuditCC LogEvent) ─────────────────────────────────
-    auditEntries.forEach((a) => {
-        // Re-map stored action strings to canonical types where possible.
-        const canonicalType =
-            EVENT_META[a.action] ? a.action : 'AUDIT_EVENT';
-        const aMeta = eventMeta(canonicalType);
-        events.push({
-            id:           `audit:${a._id}`,
-            date:         a.timestamp,
-            eventType:    canonicalType,
-            event:        aMeta.label,
-            eventColor:   aMeta.color,
-            eventIcon:    aMeta.icon,
-            principal:    a.actorAddress || a.actorRole || 'System',
-            txId:         a.blockchainTxId,
-            hash:         a.blockchainTxId
-                ? `${a.blockchainTxId.slice(0, 6)}…${a.blockchainTxId.slice(-6)}`
-                : '—',
-            status: 'verified',
-        });
+    disputes.forEach((d) => {
+        events.push(makeEvent('DISPUTE_OPENED', {
+            id: `dispute:${d.disputeId}:opened`,
+            date: d.createdAt,
+            principal: d.filerAddress ? who(d.filerAddress) : 'Dispute officer',
+            principalSub: `Dispute ${d.disputeId}`,
+            txId: d.blockchainTxId || null,
+            status: d.blockchainTxId ? 'verified' : 'pending',
+        }));
+        const closed = d.resolution && d.resolution.resolvedAt;
+        if (closed) {
+            events.push(makeEvent('DISPUTE_CLOSED', {
+                id: `dispute:${d.disputeId}:closed`,
+                date: d.resolution.resolvedAt,
+                principal: d.resolution.resolvedBy || 'Dispute officer',
+                principalSub: `Dispute ${d.disputeId}${d.resolution.decision ? ` · ${d.resolution.decision}` : ''}`,
+                txId: null,
+                status: 'verified',
+            }));
+        }
     });
 
-    events.sort((a, b) => new Date(b.date) - new Date(a.date));
+    encumbrances.forEach((e) => {
+        events.push(makeEvent('ENCUMBRANCE_REGISTERED', {
+            id: `enc:${e.encumbranceId}:registered`,
+            date: e.startDate || e.createdAt,
+            principal: (e.holder && e.holder.name) || 'Encumbrance officer',
+            principalSub: `${e.type} · ${e.encumbranceId}`,
+            txId: e.blockchainTxId || null,
+            status: e.blockchainTxId ? 'verified' : 'pending',
+        }));
+        if (e.dischargeDate) {
+            events.push(makeEvent('ENCUMBRANCE_DISCHARGED', {
+                id: `enc:${e.encumbranceId}:discharged`,
+                date: e.dischargeDate,
+                principal: e.dischargedBy ? who(e.dischargedBy) : 'Encumbrance officer',
+                principalSub: `${e.type} · ${e.encumbranceId}`,
+                txId: null,
+                status: 'verified',
+            }));
+        }
+    });
+
+    const anchored = anchorIndex(requests, docs.filter((d) => d.members && d.members.length));
+    docs.forEach((d) => {
+        const onChain = anchored.has((d.documentHash || '').toLowerCase());
+        events.push(makeEvent('DOCUMENT_ATTACHED', {
+            id: `doc:${d.docId}`,
+            date: d.createdAt,
+            principal: (d.uploadedBy && (d.uploadedBy.address ? who(d.uploadedBy.address) : d.uploadedBy.role)) || 'Uploader',
+            principalSub: docLabel(d.type) + (d.name ? ` — ${d.name}` : ''),
+            txId: null,
+            hash: shortHash(d.documentHash),
+            documentHash: d.documentHash,
+            status: onChain ? 'verified' : 'pending',
+        }));
+    });
+
+    events.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    return { parcel, deed, events: events.slice(0, limit), total: events.length };
+}
+
+// ─── documents ──────────────────────────────────────────────────────────────
+async function anchoredHashes(hashes, m) {
+    const list = [...new Set(hashes.filter(Boolean).map((h) => String(h).toLowerCase()))];
+    if (!list.length) return new Map();
+    // Manifests that list any of these documents; their own hash is what a request anchors.
+    const manifests = await m.StoredDocument.find({ members: { $in: list } }).select('documentHash members').lean();
+    const candidates = [...new Set([...list, ...manifests.map((mf) => String(mf.documentHash).toLowerCase())])];
+    const reqs = await m.ChainRequest.find({ documentHash: { $in: candidates } }).select('documentHash requestId').lean();
+    return anchorIndex(reqs, manifests);
+}
+
+function toDocRow(d, anchored) {
+    const requestId = anchored.get(String(d.documentHash || '').toLowerCase());
     return {
-        parcel,
-        deed,
-        events: events.slice(0, limit),
-        total:  events.length,
+        id: d.docId,
+        docId: d.docId,
+        parcelPin: d.parcelPin || null,
+        name: d.name || docLabel(d.type),
+        type: d.type || 'OTHER',
+        typeLabel: docLabel(d.type),
+        mimeType: d.mimeType || null,
+        sha256: d.sha256,
+        documentHash: d.documentHash,
+        encryption: (d.encryption && d.encryption.alg) || 'aes-256-gcm',
+        sizeKB: d.sizeBytes ? Math.ceil(d.sizeBytes / 1024) : null,
+        uploadedBy: (d.uploadedBy && (d.uploadedBy.address || d.uploadedBy.role)) || null,
+        uploadedAt: d.createdAt,
+        anchoredOnChain: requestId !== undefined,
+        requestId: requestId !== undefined ? requestId : null,
     };
 }
 
-// ─── documents ───────────────────────────────────────────────────────────────
-async function documents(pin) {
-    const parcel = await Parcel.findOne({ pin }).lean();
-    if (!parcel) return [];
-    return (parcel.supportingDocs || []).map((d, i) => ({
-        id:         `${pin}-${i}`,
-        name:       d.name      || docLabel(d.type),
-        type:       d.type      || 'OTHER',
-        typeLabel:  docLabel(d.type),
-        ipfsCid:    d.ipfsCid   || null,
-        sha256:     d.sha256    || null,
-        sizeKB:     d.sizeKB    || null,
-        uploadedBy: d.uploadedBy|| null,
-        uploadedAt: d.uploadedAt,
-    }));
+async function documents(pin, deps = { models }) {
+    const m = deps.models;
+    const docs = await m.StoredDocument.find({ parcelPin: pin }).sort({ createdAt: -1 }).lean();
+    const anchored = await anchoredHashes(docs.map((d) => d.documentHash), m);
+    return docs.map((d) => toDocRow(d, anchored));
 }
 
-// ─── uploadDocument ──────────────────────────────────────────────────────────
 /**
- * Append a supporting document to an existing parcel's supportingDocs array.
- * Called by POST /api/parcels/:pin/documents.
- *
- * @param {string} pin  - Parcel Identification Number
- * @param {object} data - { type, name, ipfsCid, sha256, sizeKB, uploadedBy }
+ * Cross-parcel document index. Filters: type, district. Page-based.
  */
-async function uploadDocument(pin, data) {
-    const parcel = await Parcel.findOne({ pin });
-    if (!parcel) {
-        const err = new Error(`Parcel ${pin} not found`);
-        err.status = 404;
-        throw err;
+async function listDocuments({ type, district, limit = 50, page = 1 } = {}, deps = { models }) {
+    const m = deps.models;
+    const filter = { parcelPin: { $ne: null } };
+    if (type) filter.type = type;
+    let districtByPin = new Map();
+    if (district) {
+        const parcels = await m.Parcel.find({ district }).select('pin district landUse').lean();
+        filter.parcelPin = { $in: parcels.map((p) => p.pin) };
+        districtByPin = new Map(parcels.map((p) => [p.pin, p]));
     }
-    const doc = {
-        type:       data.type       || 'OTHER',
-        name:       data.name       || null,
-        ipfsCid:    data.ipfsCid    || null,
-        sha256:     data.sha256     || null,
-        sizeKB:     data.sizeKB     ? Number(data.sizeKB) : null,
-        uploadedBy: data.uploadedBy || null,
-        uploadedAt: new Date(),
-    };
-    parcel.supportingDocs.push(doc);
-    await parcel.save();
-    const idx = parcel.supportingDocs.length - 1;
+    const [rows, total] = await Promise.all([
+        m.StoredDocument.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+        m.StoredDocument.countDocuments(filter),
+    ]);
+    if (!district) {
+        const pins = [...new Set(rows.map((r) => r.parcelPin))];
+        const parcels = await m.Parcel.find({ pin: { $in: pins } }).select('pin district landUse').lean();
+        districtByPin = new Map(parcels.map((p) => [p.pin, p]));
+    }
+    const anchored = await anchoredHashes(rows.map((d) => d.documentHash), m);
     return {
-        ok: true,
-        doc: {
-            id:        `${pin}-${idx}`,
-            name:      doc.name || docLabel(doc.type),
-            type:      doc.type,
-            typeLabel: docLabel(doc.type),
-            ipfsCid:   doc.ipfsCid,
-            sizeKB:    doc.sizeKB,
-            uploadedAt: doc.uploadedAt,
-        },
+        documents: rows.map((d) => {
+            const p = districtByPin.get(d.parcelPin) || {};
+            return { ...toDocRow(d, anchored), district: p.district || null, landUse: p.landUse || null };
+        }),
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit),
     };
 }
 
-// ─── gisHistory ──────────────────────────────────────────────────────────────
-async function gisHistory(pin) {
-    const { events } = await history(pin, { limit: 200 });
-    const INCLUDE = new Set([
-        'PARCEL_REGISTERED', 'TITLE_ISSUED', 'TRANSFER_COMPLETED', 'BOUNDARY_UPDATED',
-    ]);
+// ─── gisHistory ─────────────────────────────────────────────────────────────
+const GIS_TYPES = new Set([
+    'REGISTRATION_SUBMITTED', 'TITLE_ISSUED', 'TRANSFER_COMPLETED',
+    'DISPUTE_OPENED', 'DISPUTE_CLOSED', 'ENCUMBRANCE_REGISTERED', 'ENCUMBRANCE_DISCHARGED',
+]);
+
+async function gisHistory(pin, deps) {
+    const { events } = await history(pin, { limit: 200 }, deps);
     return events
-        .filter((e) => INCLUDE.has(e.eventType))
+        .filter((e) => GIS_TYPES.has(e.eventType))
         .map((e) => ({
-            id:    e.id,
-            date:  e.date,
+            id: e.id,
+            date: e.date,
             label: e.event,
-            body:  e.eventType === 'PARCEL_REGISTERED' ? 'Parcel digitised and registered on the LMBS ledger.'
-                 : e.eventType === 'TITLE_ISSUED'       ? `Title deed issued to ${e.principal}.`
-                 : e.eventType === 'TRANSFER_COMPLETED' ? `Ownership transferred to ${e.principal}.`
-                 : e.eventType === 'BOUNDARY_UPDATED'   ? 'Parcel boundary re-surveyed and updated.'
-                 : e.event,
+            body: e.eventType === 'REGISTRATION_SUBMITTED' ? 'Registration request submitted to the LandRegistry contract.'
+                : e.eventType === 'TITLE_ISSUED' ? `Title issued to ${e.principal}.`
+                : e.eventType === 'TRANSFER_COMPLETED' ? `Ownership transferred to ${e.principal}.`
+                : `${e.event}: ${e.principalSub || ''}`.trim(),
             tone: e.eventColor,
         }));
 }
 
-module.exports = { history, documents, uploadDocument, gisHistory };
+module.exports = { history, documents, listDocuments, gisHistory, EVENT_META };

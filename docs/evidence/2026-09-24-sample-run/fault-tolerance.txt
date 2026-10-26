@@ -1,0 +1,19 @@
+QBFT fault-tolerance demo  2026-09-24T09:27:54Z
+Validators: "0x3ee2100bfa60ad05d79573d54404fd502f7fd85a","0x6cfec6aabd91e16ede071a0031f3495f240d1c71","0x6f3434475d66248a99841751a7b7105fa098c541","0xecb3da6b5790cebd009ec8b05d1cf9b0fc9dc46b"
+Step 1: all four validators running
+   node1 block 715 -> 723 over 16s (+8)
+node4 (pid 3533) stopped
+Step 2: node4 stopped (3 of 4 running, quorum = 3)
+   node1 block 723 -> 729 over 16s (+6)
+node3 (pid 3518) stopped
+Step 3: node3 also stopped (2 of 4 running, below quorum)
+   node1 block 729 -> 729 over 16s (+0)
+node3 started (pid 4495, rpc :8547, p2p :30305)
+node4 started (pid 4513, rpc :8548, p2p :30306)
+Step 4: node3 and node4 restarted (waiting for JVM start-up and QBFT round change)
+   block production resumed after 40s (node1 at block 730)
+   node4 has re-synced to block 730
+
+RESULT  4/4: +8 blocks | 3/4: +6 blocks | 2/4: +0 blocks | recovered: +1 blocks
+PASS: tolerates one stopped validator; halts safely below quorum; recovers when quorum returns.
+Log: generated/fault-tolerance-20260924T112754.log

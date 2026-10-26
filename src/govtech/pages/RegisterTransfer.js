@@ -10,15 +10,30 @@
  *   SURVEY_PLAN | ENV_ASSESSMENT | DEED_OF_SALE | TITLE_DEED |
  *   COURT_ORDER | ID_DOCUMENT | POWER_OF_ATTORNEY | OTHER
  *
- * NOTE: Encumbrances and disputes are not handled in this release.
+ * ON-CHAIN SUBMISSION (supervisor review, Aug 2026)
+ *   1. Every attached file is encrypted and stored off-chain (/api/documents);
+ *      a manifest of their hashes is stored the same way.
+ *   2. The request is submitted to the LandRegistry contract FROM THE USER'S
+ *      OWN WALLET: submitRegistration (registrar / applicant) or
+ *      submitTransfer (current title holder only). The manifest hash is the
+ *      on-chain documentHash; the Survey Plan hash is the cadastral surveyHash.
+ *   3. The backend then records the off-chain metadata against the verified
+ *      transaction. Nothing becomes ACTIVE until M-of-N approvers approve it
+ *      on-chain.
  *
  * All UI strings use useTranslation() (SRS NFR-009).
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { parcelService } from '../../services';
+import { parcelService, transferService } from '../../services';
 import { useTranslation } from '../../i18n';
+import { useAuth } from '../../auth';
+import { useChain } from '../../chain/ChainContext';
+import { parcelKeyOf, submitRegistration, submitTransfer } from '../../chain/registry';
+import { uploadDocument, uploadManifest } from '../../chain/documents';
+import { decodeChainError } from '../../chain/errors';
+import WalletPanel from '../components/WalletPanel';
 
 const inputCls = 'w-full px-3 py-2 border border-outline-variant rounded-DEFAULT bg-surface-container-lowest font-public-sans text-body-sm placeholder:text-outline focus:outline-none focus:border-tertiary-fixed-dim';
 
@@ -55,40 +70,96 @@ function Stepper({ current, steps }) {
 
 // ─── Field wrapper ────────────────────────────────────────────────────────────
 
-function Field({ label, children }) {
+function Field({ label, required, error, children }) {
     return (
         <label className="flex flex-col gap-1">
-            <span className="font-public-sans text-body-sm font-medium text-on-surface">{label}</span>
+            <span className="font-public-sans text-body-sm font-medium text-on-surface">
+                {label}
+                {required && <span className="text-error ml-0.5" aria-hidden="true">*</span>}
+            </span>
             {children}
+            {error && <span role="alert" className="font-public-sans text-body-sm text-error">{error}</span>}
         </label>
     );
 }
 
+// ─── Validation ───────────────────────────────────────────────────────────────
+// Crucial fields per step. "Next Step" (and the final submit) is blocked until
+// validateStep returns no errors for that step.
+
+const EMAIL_RE  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const WALLET_RE = /^0x[0-9a-fA-F]{40}$/;
+const blank     = (v) => !String(v || '').trim();
+
+function validateStep(step, form, docs, isTransfer, walletLocked, t) {
+    const e = {};
+    if (step === 1) {
+        if (blank(form.fullName)) e.fullName = t('regwizard.fullNameRequired');
+        if (blank(form.idNumber)) e.idNumber = t('regwizard.idNumberRequired');
+        if (blank(form.email))    e.email    = t('regwizard.emailRequired');
+        else if (!EMAIL_RE.test(form.email.trim())) e.email = t('regwizard.emailInvalid');
+        if (!WALLET_RE.test(form.wallet || '')) e.wallet = t(walletLocked ? 'regwizard.walletNotLinked' : 'regwizard.walletRequired');
+    }
+    if (step === 2) {
+        if (blank(form.pin))            e.pin      = t('regwizard.pinRequired');
+        // A transfer moves an existing title; its parcel attributes are already on record.
+        if (!isTransfer) {
+            if (blank(form.district))       e.district = t('regwizard.districtRequired');
+            if (!(Number(form.areaM2) > 0)) e.areaM2   = t('regwizard.areaRequired');
+            if (blank(form.useType))        e.useType  = t('regwizard.landUseRequired');
+        }
+        if (isTransfer && (blank(form.priceLSL) || Number(form.priceLSL) < 0)) e.priceLSL = t('regwizard.priceRequired');
+    }
+    if (step === 3) {
+        if (!isTransfer && !docs.some((d) => d.type === 'SURVEY_PLAN')) e.docs = t('regwizard.surveyRequired');
+        if (isTransfer && docs.length === 0) e.docs = t('regwizard.docsRequired');
+    }
+    return e;
+}
+
+const fieldCls = (errors, k, extra = '') => inputCls + extra + (errors[k] ? ' border-error' : '');
+
 // ─── Step 1: Applicant Details ────────────────────────────────────────────────
 
-function ApplicantStep({ form, set, onCancel, onNext }) {
+function ApplicantStep({ form, set, errors, walletLocked, onCancel, onNext, isTransfer }) {
     const { t } = useTranslation();
     return (
         <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-lg">
             <h2 className="font-public-sans text-h3 font-semibold text-on-surface">{t('regwizard.applicantDetails')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-stack-md mt-stack-md">
-                <Field label={t('regwizard.fullName')}>
-                    <input className={inputCls} value={form.fullName || ''} onChange={(e) => set('fullName', e.target.value)} placeholder="e.g. Thabo Moshoeshoe" />
+                <Field label={t('regwizard.fullName')} required error={errors.fullName}>
+                    <input className={fieldCls(errors, 'fullName')} aria-required="true" aria-invalid={!!errors.fullName} value={form.fullName || ''} onChange={(e) => set('fullName', e.target.value)} placeholder="e.g. Thabo Moshoeshoe" />
                 </Field>
-                <Field label={t('regwizard.nationalId')}>
-                    <input className={inputCls} value={form.idNumber || ''} onChange={(e) => set('idNumber', e.target.value)} placeholder="ID-XXXX-YYYY" />
+                <Field label={t('regwizard.nationalId')} required error={errors.idNumber}>
+                    <input className={fieldCls(errors, 'idNumber')} aria-required="true" aria-invalid={!!errors.idNumber} value={form.idNumber || ''} onChange={(e) => set('idNumber', e.target.value)} placeholder="ID-XXXX-YYYY" />
                 </Field>
                 <div className="md:col-span-2">
                     <Field label={t('regwizard.entity')}>
                         <input className={inputCls} value={form.entity || ''} onChange={(e) => set('entity', e.target.value)} placeholder="Company Name Ltd." />
                     </Field>
                 </div>
-                <Field label={t('regwizard.contactEmail')}>
-                    <input type="email" className={inputCls} value={form.email || ''} onChange={(e) => set('email', e.target.value)} placeholder="thabo@example.co.ls" />
+                <Field label={t('regwizard.contactEmail')} required error={errors.email}>
+                    <input type="email" className={fieldCls(errors, 'email')} aria-required="true" aria-invalid={!!errors.email} value={form.email || ''} onChange={(e) => set('email', e.target.value)} placeholder="thabo@example.co.ls" />
                 </Field>
                 <Field label={t('regwizard.phoneNumber')}>
                     <input className={inputCls} value={form.phone || ''} onChange={(e) => set('phone', e.target.value)} placeholder="+266 5X XXX XXX" />
                 </Field>
+                <div className="md:col-span-2">
+                    <Field label={isTransfer ? t('regwizard.buyerWallet', 'Buyer wallet address (must have a verified identity)') : t('regwizard.beneficiaryWallet', 'Beneficiary wallet address (must have a verified identity)')} required error={errors.wallet}>
+                        <input
+                            className={fieldCls(errors, 'wallet', ' font-mono') + (walletLocked ? ' bg-surface-container-low cursor-not-allowed' : '')}
+                            aria-required="true" aria-invalid={!!errors.wallet}
+                            value={form.wallet || ''}
+                            onChange={(e) => set('wallet', e.target.value.trim())}
+                            readOnly={walletLocked}
+                            placeholder={walletLocked ? t('regwizard.walletNotLinkedShort') : '0x…'}
+                        />
+                    </Field>
+                    {/* Citizens register parcels to themselves: the beneficiary is their own linked wallet. */}
+                    {walletLocked && (
+                        <p className="font-public-sans text-body-sm text-on-surface-variant mt-1">{t('regwizard.walletSelfHint')}</p>
+                    )}
+                </div>
             </div>
             <div className="flex justify-end items-center gap-2 mt-stack-lg">
                 <button onClick={onCancel} className="px-4 py-2 border border-outline-variant rounded-DEFAULT font-public-sans text-body-sm hover:bg-surface-container-low transition-colors">{t('regwizard.cancel')}</button>
@@ -100,28 +171,29 @@ function ApplicantStep({ form, set, onCancel, onNext }) {
 
 // ─── Step 2: Property Details ─────────────────────────────────────────────────
 
-function PropertyStep({ form, set, onBack, onNext }) {
+function PropertyStep({ form, set, errors, isTransfer, onBack, onNext }) {
     const { t } = useTranslation();
     return (
         <section className="bg-surface-container-lowest border border-outline-variant rounded-xl p-stack-lg">
             <h2 className="font-public-sans text-h3 font-semibold text-on-surface">{t('regwizard.propertyDetails')}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-stack-md mt-stack-md">
-                <Field label={t('regwizard.parcelPin')}>
-                    <input className={inputCls} value={form.pin || ''} onChange={(e) => set('pin', e.target.value)} placeholder="LSO-MAS-00001-2026-AB12" />
+                <Field label={t('regwizard.parcelPin')} required error={errors.pin}>
+                    <input className={fieldCls(errors, 'pin')} aria-required="true" aria-invalid={!!errors.pin} value={form.pin || ''} onChange={(e) => set('pin', e.target.value)} placeholder="LSO-MAS-00001-2026-AB12" />
                 </Field>
-                <Field label={t('regwizard.district')}>
-                    <select className={inputCls} value={form.district || ''} onChange={(e) => set('district', e.target.value)}>
+                {!isTransfer && <>
+                <Field label={t('regwizard.district')} required error={errors.district}>
+                    <select className={fieldCls(errors, 'district')} aria-required="true" aria-invalid={!!errors.district} value={form.district || ''} onChange={(e) => set('district', e.target.value)}>
                         <option value="">{t('regwizard.selectDistrict')}</option>
                         {['Maseru','Berea','Leribe','Botha-Bothe','Mafeteng',"Mohale's Hoek",'Quthing',"Qacha's Nek",'Mokhotlong','Thaba-Tseka'].map((d) => (
                             <option key={d} value={d}>{d}</option>
                         ))}
                     </select>
                 </Field>
-                <Field label={t('regwizard.areaM2')}>
-                    <input type="number" min="0" className={inputCls} value={form.areaM2 || ''} onChange={(e) => set('areaM2', e.target.value)} placeholder="e.g. 14250" />
+                <Field label={t('regwizard.areaM2')} required error={errors.areaM2}>
+                    <input type="number" min="0" className={fieldCls(errors, 'areaM2')} aria-required="true" aria-invalid={!!errors.areaM2} value={form.areaM2 || ''} onChange={(e) => set('areaM2', e.target.value)} placeholder="e.g. 14250" />
                 </Field>
-                <Field label={t('regwizard.landUseType')}>
-                    <select className={inputCls} value={form.useType || ''} onChange={(e) => set('useType', e.target.value)}>
+                <Field label={t('regwizard.landUseType')} required error={errors.useType}>
+                    <select className={fieldCls(errors, 'useType')} aria-required="true" aria-invalid={!!errors.useType} value={form.useType || ''} onChange={(e) => set('useType', e.target.value)}>
                         <option value="">{t('regwizard.selectLandUse')}</option>
                         <option value="RESIDENTIAL">{t('regwizard.landUseResidential')}</option>
                         <option value="COMMERCIAL">{t('regwizard.landUseCommercial')}</option>
@@ -130,9 +202,10 @@ function PropertyStep({ form, set, onBack, onNext }) {
                         <option value="OTHER">{t('regwizard.landUseOther')}</option>
                     </select>
                 </Field>
+                </>}
                 <div className="md:col-span-2">
-                    <Field label={t('regwizard.salePrice')}>
-                        <input type="number" min="0" className={inputCls} value={form.priceLSL || ''} onChange={(e) => set('priceLSL', e.target.value)} placeholder="0 for gift transfer" />
+                    <Field label={t('regwizard.salePrice')} required={isTransfer} error={errors.priceLSL}>
+                        <input type="number" min="0" className={fieldCls(errors, 'priceLSL')} aria-required={isTransfer} aria-invalid={!!errors.priceLSL} value={form.priceLSL || ''} onChange={(e) => set('priceLSL', e.target.value)} placeholder="0 for gift transfer" />
                     </Field>
                 </div>
             </div>
@@ -149,7 +222,7 @@ function PropertyStep({ form, set, onBack, onNext }) {
 // Files are stored in component state as { file, type, name } objects and
 // uploaded to the backend on the final Submit step.
 
-function DocumentsStep({ docs, setDocs, onBack, onNext }) {
+function DocumentsStep({ docs, setDocs, errors, onBack, onNext }) {
     const { t }   = useTranslation();
     const fileRef = useRef(null);
 
@@ -277,6 +350,10 @@ function DocumentsStep({ docs, setDocs, onBack, onNext }) {
                 </p>
             )}
 
+            {errors.docs && (
+                <p role="alert" className="mt-3 font-public-sans text-body-sm text-error">{errors.docs}</p>
+            )}
+
             <div className="flex justify-between items-center gap-2 mt-stack-lg">
                 <button onClick={onBack} className="px-4 py-2 border border-outline-variant rounded-DEFAULT font-public-sans text-body-sm hover:bg-surface-container-low transition-colors">{t('regwizard.back')}</button>
                 <button onClick={onNext} className="px-4 py-2 bg-primary-container text-white font-public-sans text-body-sm font-semibold rounded-DEFAULT hover:opacity-90 transition-opacity">{t('regwizard.nextStep')}</button>
@@ -386,9 +463,45 @@ export default function RegisterTransfer() {
     const [docs,        setDocs]        = useState([]);   // [{ id, file, name, type, sizeKB }]
     const [submitting,  setSubmitting]  = useState(false);
     const [submitError, setSubmitError] = useState(null);
+    const [errors,      setErrors]      = useState({});   // { [field]: message } for the current step
     const [draftState,  setDraftState]  = useState(null); // null | 'saving' | 'saved' | 'error'
+    const [progress,    setProgress]    = useState(null);
+    const chain = useChain();
+    const { user } = useAuth();
 
-    const set      = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+    // A citizen can only register a parcel to themselves, so the beneficiary is their own
+    // linked wallet. Officers enter the beneficiary; transfers name a buyer (never the owner).
+    const walletLocked = !isTransfer && !!user && user.role === 'CITIZEN';
+    useEffect(() => {
+        if (walletLocked) setForm((prev) => ({ ...prev, wallet: chain.linkedAddress || '' }));
+    }, [walletLocked, chain.linkedAddress]);
+
+    // The same citizen is the applicant, so prefill their details from the profile.
+    // Only empty fields are filled; the user can still edit them.
+    useEffect(() => {
+        if (!walletLocked || !user) return;
+        setForm((prev) => ({
+            ...prev,
+            fullName: prev.fullName || user.name  || '',
+            idNumber: prev.idNumber || user.lnid  || '',
+            email:    prev.email    || user.email || '',
+        }));
+    }, [walletLocked, user]);
+
+    const clearError = (k) => setErrors((prev) => {
+        if (!prev[k]) return prev;
+        const next = { ...prev };
+        delete next[k];
+        return next;
+    });
+    const set      = (k, v) => { setForm((prev) => ({ ...prev, [k]: v })); clearError(k); };
+    const setDocsAndClear = (u) => { setDocs(u); clearError('docs'); };
+    const goTo     = (s) => { setErrors({}); setStep(s); };
+    const goNext   = (from) => {
+        const errs = validateStep(from, form, docs, isTransfer, walletLocked, t);
+        setErrors(errs);
+        if (Object.keys(errs).length === 0) setStep(from + 1);
+    };
     const onCancel = () => navigate(-1);
 
     // TC-LR-009 / FR-LR-008: save current wizard state as a DRAFT parcel
@@ -424,47 +537,61 @@ export default function RegisterTransfer() {
         setSubmitting(true);
         setSubmitError(null);
         try {
-            // 1. Register the parcel / transfer
-            await parcelService.register({
-                parcelNumber: form.pin || ('LSO-NEW-' + Date.now()),
-                location:     form.district || '',
-                area:         Number(form.areaM2) || 0,
-                owner:        form.fullName || '',
-                additionalDetails: {
-                    idNumber:   form.idNumber,
-                    entity:     form.entity,
-                    email:      form.email,
-                    phone:      form.phone,
-                    useType:    form.useType,
-                    priceLSL:   form.priceLSL ? Number(form.priceLSL) : 0,
-                    isTransfer,
-                    sourcePin:  pin,
-                },
-            });
-
-            const effectivePin = form.pin || pin || 'PRCL-NEW';
-
-            // 2. Upload each attached document to the backend so it appears
-            //    in the Property Details Official Documents panel immediately.
-            if (docs.length > 0) {
-                await Promise.allSettled(
-                    docs.map((d) =>
-                        parcelService.uploadDocument(effectivePin, {
-                            type:       d.type,
-                            name:       d.name,
-                            sizeKB:     d.sizeKB,
-                            uploadedBy: form.fullName || form.idNumber || 'Applicant',
-                            // ipfsCid and sha256 are filled by the backend IPFS pipeline
-                        })
-                    )
-                );
+            // Re-check every step; send the user back to the first one with a missing field.
+            for (const s of [1, 2, 3]) {
+                const errs = validateStep(s, form, docs, isTransfer, walletLocked, t);
+                if (Object.keys(errs).length) { setErrors(errs); setStep(s); return; }
             }
+            if (!chain.config || !chain.config.configured) throw new Error('The blockchain network is not configured on the server.');
+            if (!chain.signer || !chain.walletMatchesAccount) throw new Error('Connect the wallet that is linked to your account (see the Wallet panel above).');
+            const parcelNumber = (form.pin || pin || '').trim();
 
-            navigate('/certificate/' + encodeURIComponent(effectivePin));
+            // 1. Encrypt and store every document off-chain; anchor only hashes.
+            setProgress(t('regwizard.progressDocs', 'Encrypting and storing documents…'));
+            const stored = [];
+            for (const d of docs) {
+                const r = await uploadDocument(d.file, { type: d.type, parcelPin: parcelNumber });
+                stored.push({ type: d.type, name: d.name, docId: r.docId, documentHash: r.documentHash });
+            }
+            const manifest = await uploadManifest({
+                kind: isTransfer ? 'TRANSFER' : 'REGISTRATION', parcelNumber, documents: stored, createdAt: new Date().toISOString(),
+            }, parcelNumber);
+
+            // 2. Submit on-chain from the user's own wallet.
+            setProgress(t('regwizard.progressWallet', 'Confirm the request in your wallet…'));
+            if (isTransfer) {
+                const tokenId = BigInt(await parcelKeyOf(chain.config, parcelNumber)).toString();
+                const out = await submitTransfer(chain.config, chain.signer, { tokenId, to: form.wallet, documentHash: manifest.documentHash });
+                setProgress(t('regwizard.progressRecord', 'Recording details…'));
+                const price = Number(form.priceLSL) || 0;
+                await transferService.initiate({
+                    chainTxHash: out.txHash, considerationLSL: price, isGiftTransfer: price === 0,
+                    toOwner: { fullName: form.fullName || '' },
+                });
+                navigate('/registry');
+            } else {
+                const surveyHash = stored.find((d) => d.type === 'SURVEY_PLAN').documentHash;
+                const out = await submitRegistration(chain.config, chain.signer, {
+                    parcelNumber, beneficiary: form.wallet, surveyHash, documentHash: manifest.documentHash,
+                });
+                setProgress(t('regwizard.progressRecord', 'Recording details…'));
+                await parcelService.register({
+                    parcelNumber,
+                    chainTxHash: out.txHash,
+                    location:     form.district || '',
+                    district:     form.district || 'Maseru',
+                    areaM2:       Number(form.areaM2) || 0,
+                    landUse:      form.useType || 'RESIDENTIAL',
+                    owner:        { fullName: form.fullName || '' },
+                    additionalDetails: { idNumber: form.idNumber, entity: form.entity, email: form.email, phone: form.phone },
+                });
+                navigate('/property/' + encodeURIComponent(parcelNumber));
+            }
         } catch (err) {
-            setSubmitError(err.message || t('regwizard.submissionFailed'));
+            setSubmitError(decodeChainError(err) || t('regwizard.submissionFailed'));
         } finally {
             setSubmitting(false);
+            setProgress(null);
         }
     };
 
@@ -505,9 +632,12 @@ export default function RegisterTransfer() {
                 </div>
             )}
 
-            {step === 1 && <ApplicantStep form={form} set={set} onCancel={onCancel} onNext={() => setStep(2)} />}
-            {step === 2 && <PropertyStep  form={form} set={set} onBack={() => setStep(1)} onNext={() => setStep(3)} />}
-            {step === 3 && <DocumentsStep docs={docs} setDocs={setDocs} onBack={() => setStep(2)} onNext={() => setStep(4)} />}
+            {step === 1 && <ApplicantStep form={form} set={set} errors={errors} walletLocked={walletLocked} isTransfer={isTransfer} onCancel={onCancel} onNext={() => goNext(1)} />}
+            {step === 1 && walletLocked && !chain.linkedAddress && <WalletPanel />}
+            {step === 2 && <PropertyStep  form={form} set={set} errors={errors} isTransfer={isTransfer} onBack={() => goTo(1)} onNext={() => goNext(2)} />}
+            {step === 3 && <DocumentsStep docs={docs} setDocs={setDocsAndClear} errors={errors} onBack={() => goTo(2)} onNext={() => goNext(3)} />}
+            {step === 4 && <WalletPanel />}
+            {step === 4 && progress && <p role="status" className="font-public-sans text-body-sm text-on-surface-variant">{progress}</p>}
             {step === 4 && <VerifyStep    form={form} docs={docs} onBack={() => setStep(3)} onSubmit={onSubmit} submitting={submitting} error={submitError} />}
 
             <aside className="bg-secondary-container border border-outline-variant rounded-xl p-stack-md flex gap-3">

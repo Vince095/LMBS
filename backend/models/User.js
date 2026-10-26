@@ -19,7 +19,11 @@ const ROLES = [
 ];
 
 const userSchema = new Schema({
-    address: { type: String, required: true, unique: true, lowercase: true, index: true },
+    // Wallet address: set ONLY after the user signs a challenge (see /api/auth/wallet/*).
+    address: { type: String, unique: true, sparse: true, lowercase: true, index: true },
+    walletVerified: { type: Boolean, default: false },
+    walletVerifiedAt: { type: Date },
+    walletChallenge: { nonce: String, expiresAt: Date },
     lnid: { type: String, index: true, sparse: true },
     role: { type: String, enum: ROLES, default: 'CITIZEN' },
     fabricCertSerialNo: { type: String, sparse: true, index: true },
@@ -55,6 +59,7 @@ userSchema.set('toJSON', {
         delete ret.passwordHash;
         delete ret.failedLoginAttempts;
         delete ret.lockedUntil;
+        delete ret.walletChallenge;
         return ret;
     },
 });
@@ -76,6 +81,7 @@ userSchema.methods.toAuthJSON = function toAuthJSON() {
         district: o.district,
         preferredLanguage: o.preferredLanguage,
         lnid: o.lnid,
+        walletVerified: !!o.walletVerified,
         isActive: o.isActive,
         mfaEnabled: o.mfaEnabled,
     };
