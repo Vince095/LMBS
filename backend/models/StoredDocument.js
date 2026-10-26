@@ -23,6 +23,8 @@ const storedDocumentSchema = new Schema({
         tag: String,
     },
     uploadedBy: { userId: String, address: String, role: String },
+    // Manifests only: keccak256 hashes of the documents the manifest lists (lower-case).
+    members: { type: [String], default: undefined, index: true },
 }, { timestamps: true, collection: 'documents' });
 
 module.exports = model('StoredDocument', storedDocumentSchema);

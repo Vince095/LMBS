@@ -287,7 +287,8 @@
     "statusPending": "Pending",
     "docAnchored": "anchored in request #{id}",
     "docNotAnchored": "not yet anchored on-chain",
-    "openDocument": "Download"
+    "openDocument": "Download",
+    "downloadFailed": "Download failed: {error}"
   },
   "docTypes": {
     "SURVEY_PLAN": "Survey Plan",

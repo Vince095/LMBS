@@ -4,6 +4,7 @@
  * Auto-attaches the JWT from localStorage (key: lmbs.token) to every request
  * unless caller already supplied an Authorization header. On 401 it dispatches
  * a 'lmbs:auth:expired' window event so AuthContext can clear local state.
+ * Pass `{ responseType: 'blob' }` to receive a successful body as a Blob.
  */
 
 const TOKEN_KEY = 'lmbs.token';
@@ -36,6 +37,8 @@ async function request(url, options) {
         err.cause = networkErr;
         throw err;
     }
+
+    if (response.ok && opts.responseType === 'blob') return response.blob();
 
     const contentType = response.headers.get('content-type') || '';
     const payload = contentType.includes('application/json')

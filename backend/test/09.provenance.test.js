@@ -84,6 +84,42 @@ describe('provenanceService', () => {
         expect(docs[0].anchoredOnChain).toBe(false);
     });
 
+    test('documents listed in an anchored manifest count as anchored', async () => {
+        const PLAN = '0x' + '33'.repeat(32);
+        const MANIFEST = '0x' + '44'.repeat(32);
+        const rows = [
+            { docId: 'plan', parcelPin: 'MSU-1', type: 'SURVEY_PLAN', documentHash: PLAN, createdAt: new Date('2026-01-01') },
+            { docId: 'manifest', parcelPin: 'MSU-1', type: 'OTHER', documentHash: MANIFEST, members: [PLAN], createdAt: new Date('2026-01-01') },
+        ];
+        const d = deps({
+            StoredDocument: model(rows),
+            ChainRequest: model([{ requestId: 9, kind: 'REGISTRATION', status: 'PENDING', documentHash: MANIFEST, submitter: A, from: A, to: A, decisions: [] }]),
+        });
+        const docs = await provenance.documents('MSU-1', d);
+        expect(docs.find((x) => x.docId === 'plan')).toMatchObject({ anchoredOnChain: true, requestId: 9 });
+        const out = await provenance.history('MSU-1', {}, d);
+        const attached = out.events.filter((e) => e.eventType === 'DOCUMENT_ATTACHED');
+        expect(attached.every((e) => e.status === 'verified')).toBe(true);
+    });
+
+    test('dispute filers are resolved to user names like request parties', async () => {
+        const d = deps({ User: model([{ address: A, name: 'Applicant One' }, { address: B, name: 'Buyer Two' }]) });
+        const out = await provenance.history('MSU-1', {}, d);
+        expect(out.events.find((e) => e.eventType === 'DISPUTE_OPENED').principal).toBe('Buyer Two');
+    });
+
+    test('stored block times are used without querying the chain', async () => {
+        const getBlock = jest.fn();
+        const d = deps();
+        d.models.ChainRequest = model([{ requestId: 5, kind: 'REGISTRATION', status: 'PENDING',
+            submitter: A, from: A, to: A, submittedBlock: 10, submittedAt: new Date('2026-03-03T10:00:00Z'), decisions: [] }]);
+        d.chain = { isConfigured: () => true, getProvider: () => ({ getBlock }) };
+        const out = await provenance.history('MSU-1', {}, d);
+        const sub = out.events.find((e) => e.eventType === 'REGISTRATION_SUBMITTED');
+        expect(new Date(sub.date).toISOString()).toBe('2026-03-03T10:00:00.000Z');
+        expect(getBlock).not.toHaveBeenCalled();
+    });
+
     test('draft parcels have no history', async () => {
         const d = deps({ Parcel: model([{ pin: 'X', status: 'DRAFT' }]) });
         const out = await provenance.history('X', {}, d);

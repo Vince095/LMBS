@@ -58,6 +58,7 @@ async function put(StoredDocument, buf, meta = {}) {
         documentHash: h.documentHash,
         encryption: { alg: 'aes-256-gcm', iv: enc.iv, tag: enc.tag },
         uploadedBy: meta.uploadedBy,
+        members: meta.members,
     });
     return doc;
 }
